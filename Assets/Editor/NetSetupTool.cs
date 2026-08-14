@@ -37,6 +37,13 @@ public static class NetSetupTool
         // 씬의 Player 지점을 읽어 런타임에 배치한다(클라이언트별 오프셋 포함).
         root.transform.SetPositionAndRotation(Vector3.zero, Quaternion.identity);
 
+        // 원본 캡슐 비주얼 제거 — 원격은 수트 모델, 오너는 1인칭이라 캡슐 렌더러는 이중 표시만 유발.
+        // 콜라이더/CharacterController는 트리거 상호작용에 필요하므로 유지.
+        var rootRenderer = root.GetComponent<MeshRenderer>();
+        if (rootRenderer) Object.DestroyImmediate(rootRenderer);
+        var rootFilter = root.GetComponent<MeshFilter>();
+        if (rootFilter) Object.DestroyImmediate(rootFilter);
+
         // 1) NetworkObject + Owner NetworkTransform
         root.AddComponent<NetworkObject>();
         var nt = root.AddComponent<NetworkTransform>();
