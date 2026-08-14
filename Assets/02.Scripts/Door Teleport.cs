@@ -62,6 +62,27 @@ public GameObject objectToEnable;
         return playerCamera; // 오프라인/로비 기존 경로
     }
 
+    // 최종 리뷰 재지적(2차): 레이캐스트만 고쳐서 도달 가능해진 몸체 참조 — player/playerMovement는
+    // 여전히 비활성 씬 Player를 가리켜, 멀티에서 문을 쓰면 안 보이는 씬 Player가 순간이동하고 실제
+    // 로컬 플레이어는 제자리에 남는다(문은 소모돼 그 지점부터 진행 불가). ResolveHolder/ResolveCamera와
+    // 동형으로 런타임 해석.
+    Transform ResolvePlayer()
+    {
+        var local = Game.Net.NetPlayer.Local;
+        return local != null ? local.transform : player; // 오프라인/로비 기존 경로
+    }
+
+    MonoBehaviour ResolvePlayerMovement()
+    {
+        var local = Game.Net.NetPlayer.Local;
+        if (local != null)
+        {
+            var m = local.GetComponentInChildren<PlayerMovement>(true);
+            if (m != null) return m;
+        }
+        return playerMovement; // 오프라인/로비 기존 경로
+    }
+
 
     void Start()
     {
@@ -138,6 +159,9 @@ if (objectToEnable != null)
     {
         isBusy = true;
 
+        // 코루틴 시작 시 1회 해석 — 진행 중 NetPlayer.Local이 바뀌지 않는다고 가정(짧은 연출).
+        var targetPlayer = ResolvePlayer();
+        var targetMovement = ResolvePlayerMovement();
 
         if (doorAudio != null && doorOpenSound != null)
         {
@@ -161,8 +185,8 @@ if (objectToEnable != null)
 
 
         // Disable player
-        if (playerMovement != null)
-            playerMovement.enabled = false;
+        if (targetMovement != null)
+            targetMovement.enabled = false;
 
 
         if (playerCameraScript != null)
@@ -179,17 +203,17 @@ if (objectToEnable != null)
 
 
         // Teleport player
-        if (player != null && teleportPoint != null)
+        if (targetPlayer != null && teleportPoint != null)
         {
             CharacterController cc =
-                player.GetComponent<CharacterController>();
+                targetPlayer.GetComponent<CharacterController>();
 
             if (cc != null)
                 cc.enabled = false;
 
 
-            player.position = teleportPoint.position;
-            player.rotation = teleportPoint.rotation;
+            targetPlayer.position = teleportPoint.position;
+            targetPlayer.rotation = teleportPoint.rotation;
 
 
             if (cc != null)
@@ -248,8 +272,8 @@ if (objectToEnable != null)
 
 
         // Enable player before fade out
-        if (playerMovement != null)
-            playerMovement.enabled = true;
+        if (targetMovement != null)
+            targetMovement.enabled = true;
 
 
         if (playerCameraScript != null)

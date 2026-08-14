@@ -70,6 +70,38 @@ public static bool AnyCabinetHidden;
         return playerCamera; // 오프라인/로비 기존 경로
     }
 
+    // 최종 리뷰 재지적(2차): 레이캐스트만 고쳐서 도달 가능해진 몸체 참조 — player/playerMovement/
+    // firstPersonCamera는 여전히 비활성 씬 Player를 가리켜, 멀티에서 숨으면 로컬 시점은 그대로인데
+    // isHidden/AnyCabinetHidden만 true가 돼(크로스헤어·도구 잠김) NetPlayer.IsHiding은 계속 false라
+    // 몬스터에게 노출된 채로 남는다. ResolveCamera와 동형으로 런타임 해석.
+    Transform ResolvePlayer()
+    {
+        var local = Game.Net.NetPlayer.Local;
+        return local != null ? local.transform : player; // 오프라인/로비 기존 경로
+    }
+
+    PlayerMovement ResolvePlayerMovement()
+    {
+        var local = Game.Net.NetPlayer.Local;
+        if (local != null)
+        {
+            var m = local.GetComponentInChildren<PlayerMovement>(true);
+            if (m != null) return m;
+        }
+        return playerMovement; // 오프라인/로비 기존 경로
+    }
+
+    FirstPersonCamera ResolveFirstPersonCamera()
+    {
+        var local = Game.Net.NetPlayer.Local;
+        if (local != null)
+        {
+            var c = local.GetComponentInChildren<FirstPersonCamera>(true);
+            if (c != null) return c;
+        }
+        return firstPersonCamera; // 오프라인/로비 기존 경로
+    }
+
     void Start()
     {
         leftClosedRotation = leftDoor.localRotation;
@@ -127,7 +159,8 @@ void Update()
 
     IEnumerator OpenDoors()
 {
-    float startPitch = firstPersonCamera != null
+    var fpc = ResolveFirstPersonCamera();
+    float startPitch = fpc != null
     ? playerCamera.transform.localEulerAngles.x
     : 0f;
 
@@ -144,14 +177,14 @@ if (startPitch > 180f)
 
         // Heavy ease out
         float t = 1f - Mathf.Pow(1f - timer, 3f);
-        if (firstPersonCamera != null)
+        if (fpc != null)
 {
     float pitch = Mathf.Lerp(
         startPitch,
         0f,
         t);
 
-    firstPersonCamera.SetXRotation(pitch);
+    fpc.SetXRotation(pitch);
 }
 
         leftDoor.localRotation =
@@ -201,9 +234,12 @@ if (startPitch > 180f)
     }
 IEnumerator MovePlayer(Vector3 targetPosition, Quaternion targetRotation)
 {
-    Vector3 startPos = player.position;
-    Quaternion startRot = player.rotation;
-    float startPitch = firstPersonCamera != null
+    var target = ResolvePlayer();
+    var fpc = ResolveFirstPersonCamera();
+
+    Vector3 startPos = target.position;
+    Quaternion startRot = target.rotation;
+    float startPitch = fpc != null
     ? playerCamera.transform.localEulerAngles.x
     : 0f;
 
@@ -217,33 +253,33 @@ if (startPitch > 180f)
 
     while (timer < duration)
     {
-        
+
         timer += Time.deltaTime;
 
         float t = timer / duration;
 
         t = 1f - Mathf.Pow(1f - t, 4f);
 
-        player.position =
+        target.position =
             Vector3.Lerp(
                 startPos,
                 targetPosition,
                 t);
 
-        player.rotation =
+        target.rotation =
             Quaternion.Slerp(
                 startRot,
                 targetRotation,
                 t);
                 // Smoothly look forward
-if (firstPersonCamera != null)
+if (fpc != null)
 {
     float pitch = Mathf.Lerp(
         startPitch,
         0f,
         t);
 
-    firstPersonCamera.SetXRotation(pitch);
+    fpc.SetXRotation(pitch);
 }
 
         Vector3 cam = cameraStartLocalPos;
@@ -269,35 +305,45 @@ if (firstPersonCamera != null)
         yield return null;
     }
 
-    player.position = targetPosition;
-    player.rotation = targetRotation;
+    target.position = targetPosition;
+    target.rotation = targetRotation;
 }
 IEnumerator EnterCabinet()
 {
     AnyCabinetHidden = true;
     isBusy = true;
 
+    var target = ResolvePlayer();
+    var movement = ResolvePlayerMovement();
+    var fpc = ResolveFirstPersonCamera();
+
+    // 최종 리뷰 재지적(2차): PlayerMovement.isHiding은 NetPlayer.IsHiding NetworkVariable의 유일한
+    // 소스인데(NetPlayer.cs Update() 참고) 원래 아무도 이 필드를 설정하지 않았다 — 오프라인에서도
+    // 잠재적으로 있던 갭이지만, 멀티에서는 몬스터의 은신 판정(MonsterAI.IsTargetHiding)이 이 값에
+    // 직접 의존하므로 여기서 명시적으로 켠다.
+    if (movement != null) movement.isHiding = true;
+
     // Save where the player was standing
-    playerStartPosition = player.position;
-    playerStartRotation = player.rotation;
+    playerStartPosition = target.position;
+    playerStartRotation = target.rotation;
 
     // Open cabinet
     yield return StartCoroutine(OpenDoors());
 
     // Disable movement
-    if (playerMovement != null)
-        playerMovement.enabled = false;
+    if (movement != null)
+        movement.enabled = false;
 
     // Disable mouse look and flashlight
-    if (firstPersonCamera != null)
+    if (fpc != null)
     {
-        if (firstPersonCamera.flashlightController != null)
-            firstPersonCamera.flashlightController.enabled = false;
+        if (fpc.flashlightController != null)
+            fpc.flashlightController.enabled = false;
 
-        if (firstPersonCamera.flashlightObject != null)
-            firstPersonCamera.flashlightObject.SetActive(false);
+        if (fpc.flashlightObject != null)
+            fpc.flashlightObject.SetActive(false);
 
-        firstPersonCamera.enabled = false;
+        fpc.enabled = false;
     }
 
     // Smoothly move into the cabinet
@@ -322,7 +368,9 @@ isBusy = false;
     IEnumerator ExitCabinet()
 {
     isBusy = true;
-     
+
+    var movement = ResolvePlayerMovement();
+    var fpc = ResolveFirstPersonCamera();
 
     // Open cabinet doors
     yield return StartCoroutine(OpenDoors());
@@ -335,19 +383,20 @@ MovePlayer(
 )
     );
  AnyCabinetHidden = false;
+    if (movement != null) movement.isHiding = false; // NetPlayer.IsHiding 동기화(최종 리뷰 재지적 2차)
     // Enable movement again
-    if (playerMovement != null)
-        playerMovement.enabled = true;
+    if (movement != null)
+        movement.enabled = true;
     // Enable mouse look and flashlight
-    if (firstPersonCamera != null)
+    if (fpc != null)
     {
-        firstPersonCamera.enabled = true;
+        fpc.enabled = true;
 
-        if (firstPersonCamera.flashlightObject != null)
-            firstPersonCamera.flashlightObject.SetActive(true);
+        if (fpc.flashlightObject != null)
+            fpc.flashlightObject.SetActive(true);
 
-        if (firstPersonCamera.flashlightController != null)
-            firstPersonCamera.flashlightController.enabled = true;
+        if (fpc.flashlightController != null)
+            fpc.flashlightController.enabled = true;
     }
 
     yield return new WaitForSeconds(0.15f);
