@@ -10,13 +10,6 @@
 #
 # Get latest from https://github.com/github/gitignore/blob/main/Unity.gitignore
 #
-
-.DS_Store
-.vscode/
-*.sln
-*.slnx
-*_BurstDebugInformation_DoNotShip/
-
 .utmp/
 /[Ll]ibrary/
 /[Tt]emp/
