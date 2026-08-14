@@ -290,8 +290,8 @@ public static class NetSetupTool
         AttachAdapter<JumpscareTriggerPart2, NetOneShotSync>("JumpscareTriggerPart2");
         AttachAdapter<MonsterJumpscareTrigger, NetOneShotSync>("MonsterJumpscareTrigger");
 
-        // NetPickupSync(Task 7)는 아직 없음 — NetworkObject만 부착해두고, Task 7이 메뉴 재실행으로 어댑터를 보탠다.
-        AttachNetworkObjectOnly<PickupItem>("PickupItem (NetPickupSync 대기)");
+        AttachAdapter<PickupItem, NetPickupSync>("PickupItem");
+        FixNestedPickupParentSync();
 
         // MonsterNetAdapter(Task 8)는 아직 없음 — NetworkObject + NetworkTransform(서버 권위 기본)만 부착.
         int monsterCount = 0;
@@ -323,6 +323,29 @@ public static class NetSetupTool
             count++;
         }
         Debug.Log($"[NetSetup] {label}: {count}개 배선");
+    }
+
+    /// jungwon 함정 ⑧: Hammer/Axe/CrowBar(PickupItem)는 BoardedDoor(자체 NetworkObject)의 자식으로
+    /// 배치돼 있어, NetworkObject 기본값 AutoObjectParentSync=true가 PickupItem.Start()의
+    /// transform.SetParent(스폰 포인트로 이동)를 되돌려버린다 — "[Netcode] networkManager is not
+    /// listening, start a server or host before re-parenting" 경고와 함께 조용히 원래 부모(BoardedDoor)로
+    /// 되돌아가는 회귀가 오프라인(싱글)에서도 발생함을 회귀 게이트에서 확인했다(위치 값 자체는
+    /// 스폰 포인트로 정상 이동하지만 부모 계층만 되돌아감).
+    /// 픽업 동기화(NetPickupSync)는 NetworkVariable로만 이뤄지고 NGO의 부모-계층 자동 동기화에
+    /// 의존하지 않으므로, 이 GO들만 부모 NetworkObject를 유지한 채(중첩 구조 자체는 건드리지 않고)
+    /// AutoObjectParentSync를 꺼서 NGO가 이 트랜스폼의 부모 변경에 더 이상 개입하지 않게 한다.
+    static void FixNestedPickupParentSync()
+    {
+        int count = 0;
+        foreach (var p in Object.FindObjectsByType<PickupItem>(FindObjectsInactive.Include, FindObjectsSortMode.None))
+        {
+            var no = p.GetComponent<NetworkObject>();
+            if (no == null) continue;
+            no.AutoObjectParentSync = false;
+            EditorUtility.SetDirty(no);
+            count++;
+        }
+        Debug.Log($"[NetSetup] PickupItem AutoObjectParentSync=false: {count}개 적용(중첩 NetworkObject 재부모 회귀 방지)");
     }
 
     static void AttachNetworkObjectOnly<TFind>(string label) where TFind : Component

@@ -1,5 +1,6 @@
 
 using UnityEngine;
+using Unity.Netcode;
 
 public class PickupItem : MonoBehaviour, IInteractable
 {
@@ -33,6 +34,14 @@ public class PickupItem : MonoBehaviour, IInteractable
 
     // The spawn point this item was placed at
     private Transform currentSpawnPoint;
+
+    Game.Net.NetPickupSync _sync;
+
+    void Awake()
+    {
+        _sync = GetComponent<Game.Net.NetPickupSync>();
+        if (_sync != null) _sync.OnTakenChanged += HandleTakenChanged;
+    }
 
     void Start()
     {
@@ -111,6 +120,45 @@ public class PickupItem : MonoBehaviour, IInteractable
     void PickUp()
     {
         pickedUp = true;
+
+        if (_sync != null)
+        {
+            _sync.RequestPickup(); // 실제 장착은 OnTakenChanged 콜백에서(HandleTakenChanged)
+            return;
+        }
+
+        DoLocalPickup(); // 어댑터 없으면 기존 경로
+    }
+
+    // Task 7: NetPickupSync.OnTakenChanged 콜백 — 서버 중재 결과 반영.
+    void HandleTakenChanged(bool taken, ulong holderClientId)
+    {
+        if (!taken)
+        {
+            // 드롭됨 — 원격에서 숨겨뒀던 오브젝트를 재표시(위치는 SetDropPositionRpc가 이미 반영).
+            if (!gameObject.activeSelf)
+                gameObject.SetActive(true);
+            return;
+        }
+
+        // 오프라인/미스폰이면 NetPickupSync가 holderClientId=0으로 로컬 호출한 것 — 항상 로컬 획득.
+        // (NetworkManager.Singleton이 아예 없을 수도 있음 — GameScene을 바로 Play한 싱글 경로.)
+        bool offlineLocal = !Game.Net.NetToggleSync.Online || !_sync.IsSpawned;
+
+        if (offlineLocal ||
+            (NetworkManager.Singleton != null && holderClientId == NetworkManager.Singleton.LocalClientId))
+        {
+            DoLocalPickup();
+        }
+        else
+        {
+            // 다른 클라이언트가 먼저 획득 — 이 클라이언트에서는 월드에서 숨김.
+            gameObject.SetActive(false);
+        }
+    }
+
+    void DoLocalPickup()
+    {
         canPlayDropSound = false;
 
         // Stop following the spawn point

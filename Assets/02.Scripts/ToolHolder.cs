@@ -165,6 +165,11 @@ public float sprintSwaySpeed = 6.5f;
                 ForceMode.Impulse);
         }
 
+        // Task 7: 네트워크 어댑터가 있으면 드롭을 전 클라이언트에 전파(위치 재표시).
+        var netSync = currentTool.GetComponent<Game.Net.NetPickupSync>();
+        if (netSync != null)
+            netSync.RequestDrop(currentTool.transform.position);
+
         if (currentPickup != null)
             currentPickup.SetPickedUp(false);
 

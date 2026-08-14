@@ -94924,6 +94924,7 @@ GameObject:
   - component: {fileID: 1490935000}
   - component: {fileID: 1490935001}
   - component: {fileID: 1490935002}
+  - component: {fileID: 1490935003}
   m_Layer: 3
   m_Name: Hammer
   m_TagString: Untagged
@@ -95117,9 +95118,22 @@ MonoBehaviour:
   SceneMigrationSynchronization: 0
   SpawnWithObservers: 1
   DontDestroyWithOwner: 0
-  AutoObjectParentSync: 1
+  AutoObjectParentSync: 0
   SyncOwnerTransformWhenParented: 1
   AllowOwnerToParent: 0
+--- !u!114 &1490935003
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1490934997}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 3b6b3b0fd2e3a4d00979254239f5c562, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::Game.Net.NetPickupSync
+  ShowTopMostFoldoutHeaderGroup: 1
 --- !u!1 &1493839375
 GameObject:
   m_ObjectHideFlags: 0
@@ -104200,6 +104214,7 @@ GameObject:
   - component: {fileID: 1616822806}
   - component: {fileID: 1616822807}
   - component: {fileID: 1616822808}
+  - component: {fileID: 1616822809}
   m_Layer: 3
   m_Name: Axe
   m_TagString: Untagged
@@ -104393,9 +104408,22 @@ MonoBehaviour:
   SceneMigrationSynchronization: 0
   SpawnWithObservers: 1
   DontDestroyWithOwner: 0
-  AutoObjectParentSync: 1
+  AutoObjectParentSync: 0
   SyncOwnerTransformWhenParented: 1
   AllowOwnerToParent: 0
+--- !u!114 &1616822809
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1616822803}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 3b6b3b0fd2e3a4d00979254239f5c562, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::Game.Net.NetPickupSync
+  ShowTopMostFoldoutHeaderGroup: 1
 --- !u!1 &1617071832
 GameObject:
   m_ObjectHideFlags: 0
@@ -113228,6 +113256,7 @@ GameObject:
   - component: {fileID: 1759692474}
   - component: {fileID: 1759692475}
   - component: {fileID: 1759692476}
+  - component: {fileID: 1759692477}
   m_Layer: 3
   m_Name: CrowBar
   m_TagString: Untagged
@@ -113421,9 +113450,22 @@ MonoBehaviour:
   SceneMigrationSynchronization: 0
   SpawnWithObservers: 1
   DontDestroyWithOwner: 0
-  AutoObjectParentSync: 1
+  AutoObjectParentSync: 0
   SyncOwnerTransformWhenParented: 1
   AllowOwnerToParent: 0
+--- !u!114 &1759692477
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1759692471}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 3b6b3b0fd2e3a4d00979254239f5c562, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::Game.Net.NetPickupSync
+  ShowTopMostFoldoutHeaderGroup: 1
 --- !u!1 &1759751417
 GameObject:
   m_ObjectHideFlags: 0
