@@ -13,6 +13,13 @@ public class LeverInteractable : MonoBehaviour, IInteractable
     public float interactDistance = 3f;
     public KeyCode interactKey = KeyCode.E;
 
+    Game.Net.NetToggleSync _sync;
+
+    void Awake()
+    {
+        _sync = GetComponent<Game.Net.NetToggleSync>();
+        if (_sync != null) _sync.OnStateChanged += _ => controller.PullLever(leverNumber);
+    }
 
     void Start()
     {
@@ -64,6 +71,13 @@ public class LeverInteractable : MonoBehaviour, IInteractable
     {
         if (controller == null)
             return;
+
+        if (_sync != null)
+        {
+            if (_sync.State) return; // 이미 당긴 레버 — 중복 호출 방지
+            _sync.RequestSet(true);
+            return;
+        }
 
         controller.PullLever(
             leverNumber);

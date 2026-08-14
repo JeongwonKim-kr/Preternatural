@@ -24,6 +24,14 @@ public class DrawerShelf : MonoBehaviour, IInteractable
     private bool opened;
     private bool moving;
 
+    Game.Net.NetToggleSync _sync;
+
+    void Awake()
+    {
+        _sync = GetComponent<Game.Net.NetToggleSync>();
+        if (_sync != null) _sync.OnStateChanged += open => StartCoroutine(MoveDrawer(open));
+    }
+
     void Start()
     {
         closedPosition = transform.localPosition;
@@ -70,8 +78,8 @@ public class DrawerShelf : MonoBehaviour, IInteractable
     if (shelf != this)
         return;
 
-    StartCoroutine(
-        MoveDrawer(!opened));
+    if (_sync != null) _sync.RequestSet(!_sync.State);
+    else StartCoroutine(MoveDrawer(!opened)); // 어댑터 없으면 기존 경로
 }
 
     IEnumerator MoveDrawer(bool open)

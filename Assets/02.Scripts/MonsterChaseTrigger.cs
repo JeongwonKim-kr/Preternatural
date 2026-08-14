@@ -59,6 +59,13 @@ public class MonsterChaseTrigger : MonoBehaviour
     private bool triggered;
     private bool doorsOpened;
 
+    Game.Net.NetOneShotSync _oneShot;
+
+    void Awake()
+    {
+        _oneShot = GetComponent<Game.Net.NetOneShotSync>();
+        if (_oneShot != null) _oneShot.OnFired += () => StartCoroutine(StartChase());
+    }
 
     void Start()
     {
@@ -132,10 +139,14 @@ public class MonsterChaseTrigger : MonoBehaviour
         if (!other.CompareTag("Player"))
             return;
 
+        // 멀티: 원격 플레이어 콜라이더는 무시 — 로컬 플레이어만 요청.
+        if (other.GetComponentInParent<Game.Net.NetPlayer>()?.IsOwner == false)
+            return;
+
         triggered = true;
 
-        StartCoroutine(
-            StartChase());
+        if (_oneShot != null) _oneShot.RequestFire();
+        else StartCoroutine(StartChase()); // 어댑터 없으면 기존 경로
     }
 
 

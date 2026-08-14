@@ -26,6 +26,14 @@ public class WoodBoard : MonoBehaviour, IInteractable
 
     private bool removed;
 
+    Game.Net.NetToggleSync _sync;
+
+    void Awake()
+    {
+        _sync = GetComponent<Game.Net.NetToggleSync>();
+        if (_sync != null) _sync.OnStateChanged += _ => StartCoroutine(RemoveBoard());
+    }
+
     void Update()
     {
         if (removed)
@@ -55,7 +63,9 @@ public class WoodBoard : MonoBehaviour, IInteractable
         if (board != this)
             return;
 
-        StartCoroutine(RemoveBoard());
+        // 도구 확인은 요청자만(위에서 이미 완료) — 실행은 전 클라이언트에서 코루틴으로.
+        if (_sync != null) _sync.RequestSet(true);
+        else StartCoroutine(RemoveBoard()); // 어댑터 없으면 기존 경로
     }
 
     IEnumerator RemoveBoard()

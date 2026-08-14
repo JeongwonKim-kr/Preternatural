@@ -10,6 +10,13 @@ public class DoorInteractable : MonoBehaviour, IInteractable
     public float interactDistance = 3f;
     public KeyCode interactKey = KeyCode.E;
 
+    Game.Net.NetToggleSync _sync;
+
+    void Awake()
+    {
+        _sync = GetComponent<Game.Net.NetToggleSync>();
+        if (_sync != null) _sync.OnStateChanged += _ => controller.InteractWithDoor();
+    }
 
     void Start()
     {
@@ -61,6 +68,14 @@ public class DoorInteractable : MonoBehaviour, IInteractable
     {
         if (controller == null)
             return;
+
+        // 잠김 상태(레버 3개 미완)면 로컬 흔들림 연출 그대로 — 동기화 불필요.
+        // 열림 가능 상태면 어댑터 경유(최초 요청자만 실제로 문을 연다).
+        if (_sync != null && controller.IsUnlocked)
+        {
+            _sync.RequestSet(true);
+            return;
+        }
 
         controller.InteractWithDoor();
     }

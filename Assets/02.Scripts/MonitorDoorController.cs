@@ -41,6 +41,13 @@ public class MonitorDoorController : MonoBehaviour, IInteractable
     private bool interacted;
     private bool opening;
 
+    Game.Net.NetToggleSync _sync;
+
+    void Awake()
+    {
+        _sync = GetComponent<Game.Net.NetToggleSync>();
+        if (_sync != null) _sync.OnStateChanged += _ => StartCoroutine(KeyboardSequence());
+    }
 
     void Start()
     {
@@ -124,8 +131,8 @@ public class MonitorDoorController : MonoBehaviour, IInteractable
 
         interacted = true;
 
-        StartCoroutine(
-            KeyboardSequence());
+        if (_sync != null) _sync.RequestSet(true);
+        else StartCoroutine(KeyboardSequence()); // 어댑터 없으면 기존 경로
     }
 
 

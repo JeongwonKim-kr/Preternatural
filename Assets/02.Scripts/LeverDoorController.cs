@@ -61,6 +61,9 @@ public class LeverDoorController : MonoBehaviour
     private bool doorOpened;
     private bool lockedCooldownActive;
 
+    /// Task 7: DoorInteractable이 잠김/열림 가능 상태를 판정하는 데 사용.
+    public bool IsUnlocked => doorUnlocked;
+
     private Quaternion doorClosedRotation;
     private Quaternion doorOpenedRotation;
 

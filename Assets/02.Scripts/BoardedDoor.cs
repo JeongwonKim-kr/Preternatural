@@ -31,6 +31,14 @@ public class BoardedDoor : MonoBehaviour, IInteractable
     private Quaternion closedRotation;
     private Quaternion openedRotation;
 
+    Game.Net.NetToggleSync _sync;
+
+    void Awake()
+    {
+        _sync = GetComponent<Game.Net.NetToggleSync>();
+        if (_sync != null) _sync.OnStateChanged += _ => StartCoroutine(OpenDoor());
+    }
+
     void Start()
     {
         closedRotation = door.localRotation;
@@ -72,7 +80,8 @@ public class BoardedDoor : MonoBehaviour, IInteractable
         if (boardsRemoved < totalBoards)
             return;
 
-        StartCoroutine(OpenDoor());
+        if (_sync != null) _sync.RequestSet(true);
+        else StartCoroutine(OpenDoor()); // 어댑터 없으면 기존 경로
     }
 
     public void RemoveBoard()

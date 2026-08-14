@@ -18,6 +18,14 @@ public class JumpscareTriggerPart2 : MonoBehaviour
 
     private bool triggered = false;
 
+    Game.Net.NetOneShotSync _oneShot;
+
+    void Awake()
+    {
+        _oneShot = GetComponent<Game.Net.NetOneShotSync>();
+        if (_oneShot != null) _oneShot.OnFired += () => StartCoroutine(Jumpscare());
+    }
+
     void Start()
     {
         if (ghost != null)
@@ -38,9 +46,14 @@ public class JumpscareTriggerPart2 : MonoBehaviour
         if (!other.CompareTag("Player"))
             return;
 
+        // 멀티: 원격 플레이어 콜라이더는 무시 — 로컬 플레이어만 요청.
+        if (other.GetComponentInParent<Game.Net.NetPlayer>()?.IsOwner == false)
+            return;
+
         triggered = true;
 
-        StartCoroutine(Jumpscare());
+        if (_oneShot != null) _oneShot.RequestFire();
+        else StartCoroutine(Jumpscare()); // 어댑터 없으면 기존 경로
     }
 
     IEnumerator Jumpscare()
