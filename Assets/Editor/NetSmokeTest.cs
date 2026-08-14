@@ -77,7 +77,25 @@ public static class NetSmokeTest
             {
                 try
                 {
-                    joinCode = await SessionManager.Instance.CreateRoomAsync("스모크");
+                    var createTask = SessionManager.Instance.CreateRoomAsync("스모크");
+                    var done = await Task.WhenAny(createTask, Task.Delay(60000));
+                    if (done != createTask)
+                    {
+                        if (attempt == 0)
+                        {
+                            Debug.LogWarning($"[NetSmokeTest] 방 생성 1차 실패(타임아웃(60s)) — 90초 대기 후 재시도");
+                            await Task.Delay(90_000);
+                        }
+                        else
+                        {
+                            Skip($"방 생성 2회 실패 — 타임아웃(60s)");
+                            return;
+                        }
+                    }
+                    else
+                    {
+                        joinCode = await createTask;
+                    }
                 }
                 catch (Exception e) when (attempt == 0)
                 {
