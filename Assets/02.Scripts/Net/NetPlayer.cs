@@ -23,6 +23,7 @@ namespace Game.Net
         [SerializeField] Light ownerFlashlight;        // 기존 FlashlightController의 Light
         [SerializeField] PlayerMovement movement;
         const float KillZ = -30f;
+        static GameObject s_scenePlayer;
 
         public NetworkVariable<bool> FlashlightOn = new(writePerm: NetworkVariableWritePermission.Owner);
         public NetworkVariable<bool> IsHiding = new(writePerm: NetworkVariableWritePermission.Owner);
@@ -32,7 +33,7 @@ namespace Game.Net
         public Camera HeadCamera { get; private set; }
 
         [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
-        static void ResetStatics() { All.Clear(); LocalPlayerDied = null; }
+        static void ResetStatics() { All.Clear(); LocalPlayerDied = null; s_scenePlayer = null; }
 
         public override void OnNetworkSpawn()
         {
@@ -45,12 +46,13 @@ namespace Game.Net
             var listener = ownerCameraObject.GetComponent<AudioListener>();
             if (listener) listener.enabled = owner;
             remoteModelRoot.SetActive(!owner);
-            remoteFlashlight.enabled = false;
+            remoteFlashlight.enabled = !owner && FlashlightOn.Value;
 
             if (owner)
             {
                 Nickname.Value = NicknameUtil.ToFixed(SessionManager.LocalNickname);
-                var scenePlayer = GameObject.Find("Player");
+                if (s_scenePlayer == null) s_scenePlayer = GameObject.Find("Player");
+                var scenePlayer = s_scenePlayer;
                 if (scenePlayer && scenePlayer != gameObject)
                 {
                     // 스폰 위치 = 씬 Player 자리 + 클라이언트별 오프셋 (겹침 방지)
@@ -66,6 +68,7 @@ namespace Game.Net
 
             FlashlightOn.OnValueChanged += (_, on) => { if (!IsOwner) remoteFlashlight.enabled = on; };
             IsAlive.OnValueChanged += HandleAliveChanged;
+            if (!IsAlive.Value) HandleAliveChanged(true, false);
         }
 
         public override void OnNetworkDespawn() => All.Remove(this);
@@ -73,9 +76,11 @@ namespace Game.Net
         void Update()
         {
             if (!IsOwner || !IsSpawned) return;
-            FlashlightOn.Value = ownerFlashlight && ownerFlashlight.enabled;
-            IsHiding.Value = movement && movement.isHiding;
-            if (transform.position.y < KillZ)
+            bool flashOn = ownerFlashlight && ownerFlashlight.enabled;
+            if (FlashlightOn.Value != flashOn) FlashlightOn.Value = flashOn;
+            bool hiding = movement && movement.isHiding;
+            if (IsHiding.Value != hiding) IsHiding.Value = hiding;
+            if (IsAlive.Value && transform.position.y < KillZ)
             {
                 var cc = GetComponent<CharacterController>();
                 if (cc) cc.enabled = false;
@@ -95,6 +100,8 @@ namespace Game.Net
             if (alive) return;
             if (!IsOwner) { remoteModelRoot.SetActive(false); remoteFlashlight.enabled = false; return; }
             foreach (var b in ownerOnly) if (b) b.enabled = false;
+            var cc = GetComponent<CharacterController>();
+            if (cc) cc.enabled = false;
             LocalPlayerDied?.Invoke(this);
         }
     }
