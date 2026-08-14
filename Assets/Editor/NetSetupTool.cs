@@ -291,17 +291,33 @@ public static class NetSetupTool
         AttachAdapter<PickupItem, NetPickupSync>("PickupItem");
         FixNestedPickupParentSync();
 
-        // Task 8: NetworkObject + NetworkTransform(서버 권위 기본) + MonsterNetAdapter 부착.
+        // Task 8 + 최종 리뷰 Critical 1: NetworkObject + NetworkTransform(서버 권위 기본) +
+        // MonsterNetAdapter 부착. NGO의 PopulateScenePlacedObjects는 활성 상태인 in-scene
+        // NetworkObject만 스폰 대상으로 등록한다 — 몬스터 GO가 비활성이면 영구 미스폰이 되어
+        // 사망/게임오버 체인 전체가 죽는다(리뷰에서 발견, 원인은 Door Teleport.Start()가 objectToEnable을
+        // SetActive(false)로 끄는 것 — 별도로 수정함). 여기서는 GO가 활성 상태로 저장되도록 방어적으로
+        // 보정만 한다. MonsterLookAI/NavMeshAgent 컴포넌트 자체는 건드리지 않는다 — 끄면
+        // MonsterLookAI.Start()가 지연되어 objectDisabledAtStart(DeathScreenController) 초기화 타이밍이
+        // 어긋나는 회귀가 생긴다(오프라인 회귀 테스트로 확인). "아직 깨어나지 않음"은 대신
+        // MonsterNetAdapter.Awake()가 MonsterLookAI.SetAwake(false)로 표현한다(렌더러/콜라이더만 감춤).
         int monsterCount = 0;
         foreach (var m in Object.FindObjectsByType<MonsterLookAI>(FindObjectsInactive.Include, FindObjectsSortMode.None))
         {
             var go = m.gameObject;
+            if (!go.activeSelf) { go.SetActive(true); EditorUtility.SetDirty(go); }
+
+            // 이전 리비전에서 씬에 저장됐을 수 있는 ai/agent 비활성 상태를 되돌린다(재실행 수렴성) —
+            // 이 컴포넌트들은 항상 켜진 채로 저장돼야 한다(MonsterNetAdapter.Awake가 런타임에 재운다).
+            if (!m.enabled) { m.enabled = true; EditorUtility.SetDirty(m); }
+            var agent = m.agent != null ? m.agent : go.GetComponent<UnityEngine.AI.NavMeshAgent>();
+            if (agent != null && !agent.enabled) { agent.enabled = true; EditorUtility.SetDirty(agent); }
+
             if (!go.GetComponent<NetworkObject>()) go.AddComponent<NetworkObject>();
             if (!go.GetComponent<NetworkTransform>()) go.AddComponent<NetworkTransform>(); // AuthorityMode 기본값 Server 유지
             if (!go.GetComponent<MonsterNetAdapter>()) go.AddComponent<MonsterNetAdapter>(); // ai/agent는 OnNetworkSpawn이 GetComponent로 자동 배선
             monsterCount++;
         }
-        Debug.Log($"[NetSetup] MonsterLookAI+MonsterNetAdapter: {monsterCount}개 배선");
+        Debug.Log($"[NetSetup] MonsterLookAI+MonsterNetAdapter: {monsterCount}개 배선 (GO·ai·agent 모두 활성 상태로 씬 저장 — 잠듦은 런타임에 MonsterNetAdapter.Awake가 표현)");
 
         FixSceneNetworkObjectHashes(scene, GameScenePath);
         Debug.Log("[NetSetup] GameScene 배선 완료");

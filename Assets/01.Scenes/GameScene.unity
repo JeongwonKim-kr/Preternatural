@@ -55408,6 +55408,7 @@ MonoBehaviour:
   backgroundMusic: {fileID: 792350275}
   flashlightController: {fileID: 95363278221843232}
   flashlightObject: {fileID: 1002703751382657}
+  awake: 1
 --- !u!111 &939093144 stripped
 Animation:
   m_CorrespondingSourceObject: {fileID: 111670102475343736, guid: 227ee07e9e5b7914ba8fbb8f430be9a5, type: 3}

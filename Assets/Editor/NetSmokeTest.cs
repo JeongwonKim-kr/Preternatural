@@ -171,8 +171,8 @@ public static class NetSmokeTest
                 else Fail($"NetPickupSync Taken 반영 안 됨 ({pickup.name})");
             }
 
-            // 8. 몬스터 어댑터 — 존재 확인 + (활성 상태면) ai.player 주입 확인
-            var monsterAdapter = await CheckMonsterAdapter(Ok, Fail, Warn);
+            // 8. 몬스터 어댑터 — 스폰 확인 + ServerWake() → ai.player 주입 확인
+            var monsterAdapter = await CheckMonsterAdapter(Ok, Fail);
 
             // 9. 강제 사망 → 관전 카메라 (ServerKill 단독 경로 — HandleAliveChanged 안전망)
             var local = NetPlayer.Local;
@@ -262,10 +262,13 @@ public static class NetSmokeTest
         return (grounded, lastY);
     }
 
-    /// 존재 확인은 항상 수행. GO가 비활성으로 시작했으면 검증을 위해 활성화하고, 이후 단계(게임오버
-    /// 트리거)가 같은 어댑터의 StartCoroutine에 의존하므로 원복하지 않는다(비활성 GO에서
-    /// StartCoroutine을 부르면 예외가 나 10단계가 깨진다) — 어차피 게임오버 후 씬이 언로드되며 정리된다.
-    static async Task<MonsterNetAdapter> CheckMonsterAdapter(Action<string> ok, Action<string> fail, Action<string> warn)
+    /// 존재 확인은 항상 수행. 최종 리뷰 Critical 1 반영: 몬스터 GO는 이제 항상 활성 상태로 씬에
+    /// 저장되므로(NGO in-scene 스폰 요건) GO를 강제로 SetActive할 필요가 없다 — 대신 NetworkObject가
+    /// 실제로 스폰됐는지(미스폰이면 사망/게임오버 체인 전체가 죽는 회귀) 확인하고, ai는 기본적으로
+    /// "잠든"(awake=false) 상태이므로 ServerWake()로 깨워 타겟팅/공격 경로를 검증한다. MonsterLookAI
+    /// 컴포넌트 자체(enabled)는 항상 켜져 있다 — 잠듦은 MonsterLookAI.awake 필드로 표현한다(렌더러/
+    /// 콜라이더만 감추고 AI 이동 정지, Start() 타이밍은 그대로 유지 — 오프라인 회귀 방지).
+    static async Task<MonsterNetAdapter> CheckMonsterAdapter(Action<string> ok, Action<string> fail)
     {
         var adapters = UnityEngine.Object.FindObjectsByType<MonsterNetAdapter>(FindObjectsInactive.Include);
         if (adapters.Length == 0) { fail("MonsterNetAdapter를 씬에서 찾지 못함"); return null; }
@@ -273,16 +276,27 @@ public static class NetSmokeTest
         var adapter = adapters[0];
         ok($"MonsterNetAdapter 존재 확인 ({adapter.name})");
 
-        if (!adapter.gameObject.activeInHierarchy)
-        {
-            warn($"몬스터 GO({adapter.name})가 비활성 상태로 시작 — 검증을 위해 임시 활성화(이후 게임오버 트리거에 필요해 원복하지 않음)");
-            adapter.gameObject.SetActive(true);
-        }
-
-        await Task.Delay(1500); // 호스트 LateUpdate 몇 프레임 대기 (타겟팅 주입)
+        if (adapter.IsSpawned)
+            ok($"몬스터 NetworkObject 스폰 확인 ({adapter.name})");
+        else
+            fail($"몬스터 NetworkObject 미스폰 — GO가 비활성 상태로 씬 저장됐을 가능성 ({adapter.name})");
 
         var aiField = typeof(MonsterNetAdapter).GetField("ai", BindingFlags.NonPublic | BindingFlags.Instance);
         var ai = aiField?.GetValue(adapter) as MonsterLookAI;
+        if (ai != null && ai.enabled)
+            ok("MonsterLookAI.enabled=true 확인(항상 켜진 채 유지되어야 함 — Start() 타이밍 보존)");
+        else
+            fail($"MonsterLookAI.enabled=false — Start()가 지연돼 오프라인 회귀를 유발할 수 있음 (ai={(ai != null ? "있음" : "없음")})");
+
+        adapter.ServerWake(); // 표시+AI 이동 활성화(호스트) — 잠든 상태로는 타겟팅 주입을 검증할 수 없음
+
+        await Task.Delay(1500); // 호스트 LateUpdate 몇 프레임 대기 (타겟팅 주입)
+
+        if (ai != null && ai.awake)
+            ok("ServerWake() → 호스트 ai.awake=true 확인");
+        else
+            fail($"ServerWake() 후에도 ai.awake=false (ai={(ai != null ? "있음" : "없음")})");
+
         if (ai != null && ai.player != null)
             ok($"몬스터 타겟팅 확인, ai.player 주입됨 ({ai.player.name})");
         else

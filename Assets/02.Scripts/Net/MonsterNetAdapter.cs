@@ -8,14 +8,38 @@ namespace Game.Net
     /// 몬스터 호스트 권위. 클라이언트: MonsterLookAI/NavMeshAgent 비활성(NetworkTransform 수신만).
     /// 호스트: 매 프레임 가장 가까운 생존·비은신 플레이어를 MonsterLookAI.player/playerCamera에 주입하고,
     /// 애니메이션 상태를 NetworkVariable로 원격에 동기화한다. 공격 판정(호스트 전용)은 ServerAttack이 맡는다.
+    ///
+    /// 최종 리뷰 Critical 1: 몬스터 GO는 NGO in-scene 스폰 대상이 되려면 씬에 "활성 상태"로 저장돼 있어야
+    /// 한다(PopulateScenePlacedObjects는 isActiveAndEnabled만 등록 — 비활성 시작은 영구 미스폰). 원래
+    /// 싱글플레이는 Door Teleport.Start()가 objectToEnable(몬스터 GO)를 SetActive(false)로 꺼서 "아직
+    /// 등장 안 함"을 표현했는데, 이게 NGO 스폰 판정보다 먼저 실행돼 영구 미스폰의 실제 원인이었다(확인:
+    /// HEAD 상태로 재현 — Play 진입 직후 몬스터 GO.active=False). 그래서 이제 GO는 절대 SetActive로
+    /// 끄지 않고(Door Teleport 쪽도 몬스터 대상이면 건너뛴다), "아직 깨어나지 않음"은 대신 _awake로
+    /// 표현한다 — MonsterLookAI.SetAwake/SetVisible이 렌더러·콜라이더를 감추고 AI 이동을 멈춘다.
+    /// MonsterLookAI.enabled/NavMeshAgent.enabled 자체는 (원격 클라이언트를 제외하곤) 건드리지 않는다 —
+    /// 이 컴포넌트들을 꺼버리면 MonsterLookAI.Start()까지 늦춰져 objectDisabledAtStart(DeathScreenController)
+    /// 초기화 타이밍이 어긋나는 회귀가 발생함을 확인했다(오프라인 회귀 테스트 중 발견).
     public class MonsterNetAdapter : NetworkBehaviour
     {
         [SerializeField] MonsterLookAI ai;
         [SerializeField] NavMeshAgent agent;
 
         readonly NetworkVariable<int> _animState = new(); // 0=Idle 1=Run 2=Jumpscare
+        readonly NetworkVariable<bool> _awake = new(false); // 서버 쓰기 기본 — 몬스터 활동 시작 여부
 
         const float SpectatorDelay = 5f; // 점프스케어 연출과 겹치지 않도록 대기 후 관전 카메라 전환
+        const float AttackCooldown = 5f; // 4인 밀집 시 매 프레임 재공격 방지(최종 리뷰 Important 6)
+        float _nextAttackTime;
+
+        void Awake()
+        {
+            if (ai == null) ai = GetComponent<MonsterLookAI>();
+            if (agent == null) agent = GetComponent<NavMeshAgent>();
+            // Awake는 씬의 모든 Start()보다 먼저 실행이 보장되므로, MonsterLookAI.Start()가 돌기 전에
+            // 반드시 "잠든" 상태로 되돌려 놓는다 — 온라인/오프라인 공통(오프라인은 OnNetworkSpawn이
+            // 아예 안 불리므로 이게 유일한 초기화 지점이다). Door Teleport가 나중에 깨운다.
+            if (ai != null) ai.SetAwake(false);
+        }
 
         public override void OnNetworkSpawn()
         {
@@ -29,7 +53,38 @@ namespace Game.Net
                 if (agent != null) agent.enabled = false;
             }
 
+            // 호스트/클라 공통: 현재 네트워크 권위 값으로 표시 상태를 맞춘다(호스트는 AI도 함께).
+            ApplyAwakeState(_awake.Value);
+            _awake.OnValueChanged += (_, awake) => ApplyAwakeState(awake);
             _animState.OnValueChanged += (_, s) => { if (!IsServer) PlayAnim(s); };
+        }
+
+        void ApplyAwakeState(bool awake)
+        {
+            if (ai == null) return;
+            if (IsServer) ai.SetAwake(awake); // 호스트: AI 이동까지 함께 제어
+            else ai.SetVisible(awake);         // 클라: 표시만(로컬 AI는 절대 돌리지 않음)
+        }
+
+        /// 서버 권위로 몬스터를 깨운다(표시+AI 활성화). 이미 깨어있으면 무해.
+        public void ServerWake()
+        {
+            if (!IsServer) return;
+            if (!_awake.Value) _awake.Value = true;
+        }
+
+        /// 클라이언트도 호출 가능 — 서버로 라우팅되어 ServerWake()를 실행한다(Door Teleport 등에서 사용).
+        [Rpc(SendTo.Server)]
+        public void RequestWakeRpc()
+        {
+            ServerWake();
+        }
+
+        /// 오프라인(미스폰) 전용 — 네트워크 변수를 거치지 않고 표시+AI를 직접 깨운다.
+        public void LocalWake()
+        {
+            if (ai == null) ai = GetComponent<MonsterLookAI>();
+            if (ai != null) ai.SetAwake(true);
         }
 
         void PlayAnim(int state)
@@ -43,6 +98,8 @@ namespace Game.Net
         void LateUpdate()
         {
             if (!IsServer || !IsSpawned || ai == null || NetPlayer.All.Count == 0) return;
+            // 공격 쿨다운 중에는 타겟을 갈아끼우지 않는다 — 매 프레임 재타겟팅으로 인한 연속 공격 방지.
+            if (Time.time < _nextAttackTime) return;
 
             var candidates = new NetTargeting.Candidate[NetPlayer.All.Count];
             for (int i = 0; i < NetPlayer.All.Count; i++)
@@ -86,6 +143,8 @@ namespace Game.Net
         public void ServerAttack(NetPlayer victim)
         {
             if (!IsServer || victim == null) return;
+            if (Time.time < _nextAttackTime) return; // 쿨다운 중 재진입 무시(최종 리뷰 Important 6)
+            _nextAttackTime = Time.time + AttackCooldown;
 
             victim.ServerKill();
             JumpscareRpc(RpcTarget.Single(victim.OwnerClientId, RpcTargetUse.Temp));

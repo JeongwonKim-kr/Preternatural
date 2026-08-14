@@ -53,6 +53,15 @@ public GameObject objectToEnable;
     bool used;
     bool videoFinished;
 
+    // 최종 리뷰 Critical 2: 씬에 정적으로 배선된 playerCamera는 멀티에서 비활성화된 씬 Player의
+    // 카메라를 가리킨다. 로컬 NetPlayer가 있으면 그쪽 HeadCamera를 우선 사용, 없으면(오프라인) 폴백.
+    Camera ResolveCamera()
+    {
+        var local = Game.Net.NetPlayer.Local;
+        if (local != null && local.HeadCamera != null) return local.HeadCamera;
+        return playerCamera; // 오프라인/로비 기존 경로
+    }
+
 
     void Start()
     {
@@ -64,7 +73,13 @@ public GameObject objectToEnable;
         }
 if (objectToEnable != null)
 {
-    objectToEnable.SetActive(false);
+    // 최종 리뷰 Critical 1(실행 중 발견): 몬스터 GO(MonsterNetAdapter 부착)는 NGO 스폰 요건상
+    // 항상 활성 상태를 유지해야 한다 — "잠듦"은 이제 GameObject 활성 여부가 아니라 ai/agent
+    // enabled로 표현한다(NetSetupTool이 씬 저장 시 비활성으로 둔다). 여기서 GO 자체를 비활성화하면
+    // 매 씬 로드마다 몬스터가 다시 미스폰 상태로 돌아가 버리므로, 몬스터 GO는 건너뛴다.
+    // 몬스터가 아닌 다른 대상은 기존 그대로 시작 시 비활성화.
+    if (objectToEnable.GetComponent<Game.Net.MonsterNetAdapter>() == null)
+        objectToEnable.SetActive(false);
 }
 
         if (currentMusic != null)
@@ -97,7 +112,11 @@ if (objectToEnable != null)
             return;
 
 
-        Ray ray = playerCamera.ViewportPointToRay(
+        var cam = ResolveCamera();
+        if (cam == null)
+            return;
+
+        Ray ray = cam.ViewportPointToRay(
             new Vector3(0.5f, 0.5f, 0));
 
 
@@ -301,7 +320,20 @@ if (objectToEnable != null)
     // Enable object after video ends
     if (objectToEnable != null)
     {
+        // 최종 리뷰 Critical 1: 몬스터 GO는 이제 항상 활성 상태로 씬에 저장돼 있으므로(NGO 스폰
+        // 요건) SetActive(true)만으로는 더 이상 몬스터를 "깨우지" 못한다 — ai/agent 자체가
+        // 비활성으로 시작하기 때문. 몬스터가 아닌 오브젝트를 위해 SetActive(true)는 그대로 두고,
+        // MonsterNetAdapter가 있으면 온라인/오프라인에 맞는 경로로 추가로 깨운다.
         objectToEnable.SetActive(true);
+
+        var adapter = objectToEnable.GetComponent<Game.Net.MonsterNetAdapter>();
+        if (adapter != null)
+        {
+            if (Game.Net.NetLink.Online)
+                adapter.RequestWakeRpc(); // 서버 권위 — 클라 호출도 서버로 라우팅됨(호스트는 즉시 실행)
+            else
+                adapter.LocalWake(); // 오프라인: 네트워크 스폰과 무관하게 즉시 깨움(기존 동작 보존)
+        }
     }
 }
 
