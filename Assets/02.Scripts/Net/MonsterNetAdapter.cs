@@ -122,8 +122,15 @@ namespace Game.Net
         void GameOverRpc()
         {
             SessionManager.LastEndReason = "전원 사망 — 게임 오버";
-            if (SessionManager.Instance != null)
-                _ = SessionManager.Instance.LeaveRoomAsync(); // 세션 종료 → Homescreen 복귀(SessionManager 경로)
+            if (IsServer) StartCoroutine(DelayedLeave());
+            else _ = SessionManager.Instance.LeaveRoomAsync();
+        }
+
+        System.Collections.IEnumerator DelayedLeave()
+        {
+            yield return new WaitForSeconds(2f); // 클라이언트 RPC 처리·이탈 시간 확보
+            var sm = SessionManager.Instance;
+            if (sm != null && sm.InSession) _ = sm.LeaveRoomAsync();
         }
     }
 }

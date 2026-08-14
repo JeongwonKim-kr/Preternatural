@@ -107,6 +107,7 @@ public class MonsterLookAI : MonoBehaviour
         if (jumpscaring)
             return;
 
+        if (player == null) return; // 멀티: 타겟 없음(전원 은신/사망 경계) — 몬스터 정지
 
         // =====================================================
         // PLAYER IS HIDING
