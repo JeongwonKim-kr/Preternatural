@@ -94,19 +94,35 @@ namespace Game.Net
         }
 
         /// 씬 Player를 찾을 때까지 재시도 후 스폰 텔레포트 + 씬 Player 비활성.
-        /// NGO 스폰이 씬 활성화 완료 전에 일어나면 GameObject.Find가 실패하므로 1프레임씩 최대 5초 재시도.
+        /// NGO 스폰이 씬 활성화 완료 전에 일어나면 GameObject.Find가 실패하므로 1프레임씩 최대 15초 재시도.
+        /// 최종 리뷰 Important 5: 이름 탐색이 실패하면 PlayerMovement 컴포넌트 기반 폴백도 시도한다 —
+        /// 그래도 실패하면 씬 Player(카메라·AudioListener·입력)가 영구 잔존해 이중 오디오 리스너 등의
+        /// 원인이 되므로 경고를 에러로 승격한다.
         IEnumerator BindScenePlayer()
         {
-            float deadline = Time.realtimeSinceStartup + 5f;
+            float deadline = Time.realtimeSinceStartup + 15f;
             while (s_scenePlayer == null && Time.realtimeSinceStartup < deadline)
             {
                 s_scenePlayer = GameObject.Find("Player");
+                if (s_scenePlayer == null)
+                {
+                    // 이름 탐색 폴백: NetworkObject가 없는(=NetPlayer 프리팹 인스턴스가 아닌) PlayerMovement를
+                    // 찾는다 — 씬 오브젝트 이름이 "Player"가 아니어도 이 방식으로는 찾을 수 있다.
+                    foreach (var pm in FindObjectsByType<PlayerMovement>(FindObjectsInactive.Exclude, FindObjectsSortMode.None))
+                    {
+                        if (pm.GetComponent<NetworkObject>() == null)
+                        {
+                            s_scenePlayer = pm.gameObject;
+                            break;
+                        }
+                    }
+                }
                 if (s_scenePlayer == null) yield return null;
             }
             var scenePlayer = s_scenePlayer;
             if (scenePlayer == null)
             {
-                Debug.LogWarning("[NetPlayer] 씬 Player를 찾지 못함 — 스폰 텔레포트 생략");
+                Debug.LogError("[NetPlayer] 씬 Player를 찾지 못함 — 스폰 텔레포트 생략(씬 Player 카메라/AudioListener 잔존 위험)");
                 yield break;
             }
             if (scenePlayer == gameObject) yield break;
