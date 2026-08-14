@@ -136,18 +136,11 @@ namespace Game.Voice
             else VivoxService.Instance.MuteInputDevice();
         }
 
-        /// 로컬 플레이어가 생존 상태인가 (플레이어 없으면 제한 없음 — 메뉴 등)
-        /// [REMOVED] 외부 의존성: Game.Player.NetworkPlayer, Game.Gameplay.PlayerLifeState/LifeState
+        /// 로컬 플레이어가 생존 상태인가 (NetPlayer.Local이 없으면 제한 없음 — 로비 등)
         static bool LocalPlayerAlive()
         {
-            // TODO: Restore when Game.Player.NetworkPlayer and Game.Gameplay.PlayerLifeState are available
-            // foreach (var p in Game.Player.NetworkPlayer.All)
-            // {
-            //     if (!p.IsOwner) continue;
-            //     var life = p.GetComponent<Game.Gameplay.PlayerLifeState>();
-            //     return life == null || life.State.Value == Game.Gameplay.LifeState.Alive;
-            // }
-            return true;
+            var local = NetPlayer.Local;
+            return local == null || local.IsAlive.Value;
         }
 
         /// 관전 등에서 마이크를 강제로 켜고 끈다 (VoiceReady 전엔 무시)
@@ -162,6 +155,10 @@ namespace Game.Voice
 
         void Update()
         {
+            // 로비 등 NetPlayer.Local이 없는 동안만 이 경로가 M키를 처리한다.
+            // 스폰된 뒤에는 NetPlayer.Update()가 IsAlive 게이트를 포함해 M키를 전담하므로
+            // 여기서도 같이 처리하면 같은 프레임에 두 번 토글되어 상쇄(무반응)된다.
+            if (NetPlayer.Local != null) return;
             if (Input.GetKeyDown(KeyCode.M)) ToggleMute();
         }
     }

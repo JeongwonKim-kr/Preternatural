@@ -57,6 +57,7 @@ namespace Game.Net
             {
                 Local = this;
                 Nickname.Value = NicknameUtil.ToFixed(SessionManager.LocalNickname);
+                ownerCameraObject.AddComponent<Game.Voice.VoicePositionUpdater>();
                 // 씬 활성화가 스폰보다 늦을 수 있어(대형 씬) Find를 재시도 코루틴으로 바인딩.
                 StartCoroutine(BindScenePlayer());
             }
@@ -75,6 +76,8 @@ namespace Game.Net
         void Update()
         {
             if (!IsOwner || !IsSpawned) return;
+            if (Input.GetKeyDown(KeyCode.M) && IsAlive.Value && Game.Voice.VoiceManager.Instance != null)
+                Game.Voice.VoiceManager.Instance.ToggleMute();
             bool flashOn = ownerFlashlight && ownerFlashlight.enabled;
             if (FlashlightOn.Value != flashOn) FlashlightOn.Value = flashOn;
             bool hiding = movement && movement.isHiding;
@@ -129,6 +132,7 @@ namespace Game.Net
             foreach (var b in ownerOnly) if (b) b.enabled = false;
             var cc = GetComponent<CharacterController>();
             if (cc) cc.enabled = false;
+            Game.Voice.VoiceManager.Instance?.SetMuted(true);
             StartCoroutine(ActivateSpectatorFallback());
             LocalPlayerDied?.Invoke(this);
         }
