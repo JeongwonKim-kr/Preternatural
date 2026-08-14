@@ -32,6 +32,15 @@ public class DrawerShelf : MonoBehaviour, IInteractable
         if (_sync != null) _sync.OnStateChanged += open => StartCoroutine(MoveDrawer(open));
     }
 
+    // 최종 리뷰 Critical 2: 씬에 정적으로 배선된 playerCamera는 멀티에서 비활성화된 씬 Player의
+    // 카메라를 가리킨다. 로컬 NetPlayer가 있으면 그쪽 HeadCamera를 우선 사용, 없으면(오프라인) 폴백.
+    Camera ResolveCamera()
+    {
+        var local = Game.Net.NetPlayer.Local;
+        if (local != null && local.HeadCamera != null) return local.HeadCamera;
+        return playerCamera; // 오프라인/로비 기존 경로
+    }
+
     void Start()
     {
         closedPosition = transform.localPosition;
@@ -52,8 +61,12 @@ public class DrawerShelf : MonoBehaviour, IInteractable
     if (!Input.GetKeyDown(interactKey))
         return;
 
+    var cam = ResolveCamera();
+    if (cam == null)
+        return;
+
     Ray ray =
-        playerCamera.ViewportPointToRay(
+        cam.ViewportPointToRay(
             new Vector3(0.5f, 0.5f, 0f));
 
     RaycastHit hit;

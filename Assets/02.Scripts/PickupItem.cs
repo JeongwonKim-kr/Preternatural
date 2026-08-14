@@ -60,6 +60,16 @@ public class PickupItem : MonoBehaviour, IInteractable
         return toolHolder; // 오프라인 기존 경로
     }
 
+    // 최종 리뷰 Critical 2: 씬에 정적으로 배선된 playerCamera는 멀티에서 비활성화된 씬 Player의
+    // 카메라를 가리킨다. 로컬 NetPlayer가 있으면 그쪽 HeadCamera를 우선 사용하고, 없으면(오프라인)
+    // 기존 필드로 폴백.
+    Camera ResolveCamera()
+    {
+        var local = Game.Net.NetPlayer.Local;
+        if (local != null && local.HeadCamera != null) return local.HeadCamera;
+        return playerCamera; // 오프라인/로비 기존 경로
+    }
+
     void Start()
     {
         rb = GetComponent<Rigidbody>();
@@ -135,7 +145,11 @@ public class PickupItem : MonoBehaviour, IInteractable
         if (!Input.GetKeyDown(pickupKey))
             return;
 
-        Ray ray = playerCamera.ViewportPointToRay(
+        var cam = ResolveCamera();
+        if (cam == null)
+            return;
+
+        Ray ray = cam.ViewportPointToRay(
             new Vector3(0.5f, 0.5f, 0f)
         );
 

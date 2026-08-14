@@ -46,6 +46,15 @@ public class WoodBoard : MonoBehaviour, IInteractable
         return toolHolder; // 오프라인 기존 경로
     }
 
+    // 최종 리뷰 Critical 2: 씬에 정적으로 배선된 playerCamera는 멀티에서 비활성화된 씬 Player의
+    // 카메라를 가리킨다. 로컬 NetPlayer가 있으면 그쪽 HeadCamera를 우선 사용, 없으면(오프라인) 폴백.
+    Camera ResolveCamera()
+    {
+        var local = Game.Net.NetPlayer.Local;
+        if (local != null && local.HeadCamera != null) return local.HeadCamera;
+        return playerCamera; // 오프라인/로비 기존 경로
+    }
+
     void Update()
     {
         if (removed)
@@ -62,11 +71,15 @@ public class WoodBoard : MonoBehaviour, IInteractable
         if (holder.CurrentTool() != requiredTool)
             return;
 
-        Ray ray = playerCamera.ViewportPointToRay(
+        var cam = ResolveCamera();
+        if (cam == null)
+            return;
+
+        Ray ray = cam.ViewportPointToRay(
             new Vector3(0.5f, 0.5f, 0f));
 
         RaycastHit hit;
-        
+
 
         if (!Physics.Raycast(ray, out hit, interactDistance))
             return;

@@ -56,6 +56,20 @@ private bool breathing;
 public bool IsHidden => isHidden;
 public static bool AnyCabinetHidden;
 
+    // 최종 리뷰 Important 3: static은 도메인 리로드에도 살아남지 않지만 에디터에서 Play 세션을 걸쳐
+    // 값이 새지 않도록(숨은 채 종료 → 다음 Play에서 몬스터 무력화) 재생 시작마다 명시적으로 리셋한다.
+    [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
+    static void ResetStatics() { AnyCabinetHidden = false; }
+
+    // 리뷰 반영: 씬에 정적으로 배선된 playerCamera는 멀티에서 비활성화된 씬 Player의 카메라를 가리킨다.
+    // 로컬 NetPlayer가 있으면 그쪽 HeadCamera를 우선 사용하고, 없으면(오프라인) 기존 필드로 폴백.
+    Camera ResolveCamera()
+    {
+        var local = Game.Net.NetPlayer.Local;
+        if (local != null && local.HeadCamera != null) return local.HeadCamera;
+        return playerCamera; // 오프라인/로비 기존 경로
+    }
+
     void Start()
     {
         leftClosedRotation = leftDoor.localRotation;
@@ -87,7 +101,11 @@ void Update()
     }
 
     // Only raycast when trying to enter
-    Ray ray = playerCamera.ViewportPointToRay(
+    var cam = ResolveCamera();
+    if (cam == null)
+        return;
+
+    Ray ray = cam.ViewportPointToRay(
         new Vector3(0.5f, 0.5f, 0f));
 
     RaycastHit hit;
