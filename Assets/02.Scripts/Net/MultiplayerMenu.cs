@@ -77,6 +77,9 @@ namespace Game.UI
             {
                 _canvasGo.SetActive(onHome);
                 if (onHome) UnlockCursor(); // 게임 씬(커서 잠금)에서 돌아온 직후 — 안 풀면 토글 버튼조차 못 누른다(jungwon 함정 ⑧)
+                else _busy = false; // 씬을 벗어나는 시점에 리셋 — OnStartClicked 성공 경로가 busy를 풀지 않으므로
+                                     // 여기서 안 풀면 이후 세션 종료→Homescreen 복귀 시 패널이 영구 먹통이 된다.
+                                     // 성공 직후 곧바로 풀면 씬 전환 전 이중 클릭 창이 생기므로, 씬 이탈 시점이 안전하다.
             }
             if (!onHome) return;
 
