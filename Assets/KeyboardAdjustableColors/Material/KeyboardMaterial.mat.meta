@@ -1,0 +1,15 @@
+fileFormatVersion: 2
+guid: 96ea4553c97f0d6499c03b61d13f027f
+NativeFormatImporter:
+  externalObjects: {}
+  mainObjectFileID: 2100000
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 154305
+  packageName: Keyboard Adjustable Colors
+  packageVersion: 1.0
+  assetPath: Assets/KeyboardAdjustableColors/Material/KeyboardMaterial.mat
+  uploadId: 333354
