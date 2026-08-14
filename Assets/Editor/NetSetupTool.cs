@@ -10,6 +10,7 @@ using UnityEngine.SceneManagement;
 using Game.Core;
 using Game.Net;
 using Game.Player;
+using Game.UI;
 using Game.Voice;
 
 /// NetPlayer 프리팹과 씬 네트워크 배선을 코드로 조립하는 에디터 빌드 툴.
@@ -267,7 +268,7 @@ public static class NetSetupTool
         EnsureComponent<SessionManager>(bootstrap);
         EnsureComponent<VoiceManager>(bootstrap);
         EnsureComponent<NetworkManagerGuard>(bootstrap);
-        // MultiplayerMenu(Task 6)는 아직 없음 — 부착 생략. Task 6에서 이 메뉴를 재실행해 갱신한다.
+        EnsureComponent<MultiplayerMenu>(bootstrap); // Task 6 — Homescreen 전용, Awake에서 UGUI 코드 생성
 
         EditorUtility.SetDirty(bootstrap);
         EditorSceneManager.MarkSceneDirty(scene);
