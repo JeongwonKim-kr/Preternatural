@@ -1,5 +1,6 @@
 using System;
 using Unity.Netcode;
+using UnityEngine;
 
 namespace Game.Net
 {
@@ -11,8 +12,7 @@ namespace Game.Net
         bool _localState;
 
         public event Action<bool> OnStateChanged;
-        public static bool Online =>
-            NetworkManager.Singleton != null && NetworkManager.Singleton.IsListening;
+        public static bool Online => NetLink.Online;
 
         public bool State => Online && IsSpawned ? _state.Value : _localState;
 
@@ -27,7 +27,12 @@ namespace Game.Net
 
         public void RequestSet(bool value)
         {
-            if (!Online || !IsSpawned)
+            if (NetLink.Online && !IsSpawned)
+            {
+                Debug.LogWarning($"[{GetType().Name}] 네트워크 가동 중 미스폰 상태 요청 무시: {name}");
+                return;
+            }
+            if (!NetLink.Online || !IsSpawned)
             {
                 if (_localState == value) return;
                 _localState = value;

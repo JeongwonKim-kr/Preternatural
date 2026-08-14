@@ -1,5 +1,6 @@
 using System;
 using Unity.Netcode;
+using UnityEngine;
 
 namespace Game.Net
 {
@@ -10,7 +11,7 @@ namespace Game.Net
         bool _localFired;
 
         public event Action OnFired;
-        public bool Fired => NetToggleSync.Online && IsSpawned ? _fired.Value : _localFired;
+        public bool Fired => NetLink.Online && IsSpawned ? _fired.Value : _localFired;
 
         public override void OnNetworkSpawn()
         {
@@ -23,7 +24,12 @@ namespace Game.Net
 
         public void RequestFire()
         {
-            if (!NetToggleSync.Online || !IsSpawned)
+            if (NetLink.Online && !IsSpawned)
+            {
+                Debug.LogWarning($"[{GetType().Name}] 네트워크 가동 중 미스폰 상태 요청 무시: {name}");
+                return;
+            }
+            if (!NetLink.Online || !IsSpawned)
             {
                 if (_localFired) return;
                 _localFired = true;
