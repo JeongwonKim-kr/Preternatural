@@ -40,42 +40,39 @@ public class PickupItem : MonoBehaviour, IInteractable
     void Awake()
     {
         _sync = GetComponent<Game.Net.NetPickupSync>();
-        if (_sync != null) _sync.OnTakenChanged += HandleTakenChanged;
+        if (_sync != null)
+        {
+            _sync.OnTakenChanged += HandleTakenChanged;
+            _sync.OnSpawnIndexChanged += ApplySpawnPoint;
+        }
+    }
+
+    // 리뷰 반영: 씬에 정적으로 배선된 toolHolder는 멀티에서 비활성화된 씬 Player를 가리킨다
+    // (NetPlayer.OnNetworkSpawn이 자신의 오너 스폰 시 씬 Player를 SetActive(false)). 로컬 NetPlayer가
+    // 있으면 그쪽 ToolHolder를 우선 사용하고, 없으면(오프라인) 기존 toolHolder 필드로 폴백한다.
+    ToolHolder ResolveHolder()
+    {
+        if (Game.Net.NetPlayer.Local != null)
+        {
+            var h = Game.Net.NetPlayer.Local.GetComponentInChildren<ToolHolder>(true);
+            if (h != null) return h;
+        }
+        return toolHolder; // 오프라인 기존 경로
     }
 
     void Start()
     {
         rb = GetComponent<Rigidbody>();
 
-        Transform[] spawnPoints =
+        // 리뷰 반영: 온라인 + 어댑터 있으면 각 클라이언트가 따로 Random을 굴리지 않고
+        // NetPickupSync가 서버에서 정한 인덱스를 기다린다(Awake에서 구독한 ApplySpawnPoint).
+        // 오프라인/어댑터 없으면 기존 Random 경로 그대로.
+        if (_sync == null || !Game.Net.NetToggleSync.Online)
         {
-            spawnPoint1,
-            spawnPoint2,
-            spawnPoint3
-        };
+            var validSpawnPoints = GetValidSpawnPoints();
 
-        // Remove empty spawn points
-        System.Collections.Generic.List<Transform> validSpawnPoints =
-            new System.Collections.Generic.List<Transform>();
-
-        foreach (Transform point in spawnPoints)
-        {
-            if (point != null)
-                validSpawnPoints.Add(point);
-        }
-
-        if (validSpawnPoints.Count > 0)
-        {
-            currentSpawnPoint =
-                validSpawnPoints[
-                    Random.Range(0, validSpawnPoints.Count)
-                ];
-
-            transform.position = currentSpawnPoint.position;
-            transform.rotation = currentSpawnPoint.rotation;
-
-            // Follow the spawn point
-            transform.SetParent(currentSpawnPoint, true);
+            if (validSpawnPoints.Count > 0)
+                ApplySpawnPoint(Random.Range(0, validSpawnPoints.Count));
         }
 
         // Rigidbody should not fight against the spawn point
@@ -85,15 +82,54 @@ public class PickupItem : MonoBehaviour, IInteractable
         }
     }
 
+    // Remove empty spawn points
+    System.Collections.Generic.List<Transform> GetValidSpawnPoints()
+    {
+        Transform[] spawnPoints = { spawnPoint1, spawnPoint2, spawnPoint3 };
+
+        var validSpawnPoints = new System.Collections.Generic.List<Transform>();
+
+        foreach (Transform point in spawnPoints)
+        {
+            if (point != null)
+                validSpawnPoints.Add(point);
+        }
+
+        return validSpawnPoints;
+    }
+
+    /// 유효 스폰 포인트 개수 — NetPickupSync가 서버에서 인덱스 범위를 정할 때 참조.
+    public int ValidSpawnPointCount => GetValidSpawnPoints().Count;
+
+    /// index번째 유효 스폰 포인트로 이동+추종. 오프라인(Start)과 온라인(NetPickupSync.OnSpawnIndexChanged)
+    /// 양쪽에서 공용으로 쓴다.
+    public void ApplySpawnPoint(int index)
+    {
+        var validSpawnPoints = GetValidSpawnPoints();
+
+        if (index < 0 || index >= validSpawnPoints.Count)
+            return;
+
+        currentSpawnPoint = validSpawnPoints[index];
+
+        transform.position = currentSpawnPoint.position;
+        transform.rotation = currentSpawnPoint.rotation;
+
+        // Follow the spawn point
+        transform.SetParent(currentSpawnPoint, true);
+    }
+
     void Update()
     {
         if (pickedUp)
             return;
 
-        if (toolHolder == null)
+        var holder = ResolveHolder();
+
+        if (holder == null)
             return;
 
-        if (toolHolder.HasTool())
+        if (holder.HasTool())
             return;
 
         if (!Input.GetKeyDown(pickupKey))
@@ -177,7 +213,7 @@ public class PickupItem : MonoBehaviour, IInteractable
             audioSource.PlayOneShot(pickupSound);
         }
 
-        toolHolder.PickupTool(
+        ResolveHolder().PickupTool(
             toolType,
             gameObject
         );

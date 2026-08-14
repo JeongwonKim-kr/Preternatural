@@ -34,6 +34,18 @@ public class WoodBoard : MonoBehaviour, IInteractable
         if (_sync != null) _sync.OnStateChanged += _ => StartCoroutine(RemoveBoard());
     }
 
+    // 리뷰 반영: 씬에 정적으로 배선된 toolHolder는 멀티에서 비활성화된 씬 Player를 가리킨다.
+    // 로컬 NetPlayer가 있으면 그쪽 ToolHolder를 우선 사용하고, 없으면(오프라인) 기존 필드로 폴백.
+    ToolHolder ResolveHolder()
+    {
+        if (Game.Net.NetPlayer.Local != null)
+        {
+            var h = Game.Net.NetPlayer.Local.GetComponentInChildren<ToolHolder>(true);
+            if (h != null) return h;
+        }
+        return toolHolder; // 오프라인 기존 경로
+    }
+
     void Update()
     {
         if (removed)
@@ -42,10 +54,12 @@ public class WoodBoard : MonoBehaviour, IInteractable
         if (!Input.GetKeyDown(interactKey))
             return;
 
-        if (!toolHolder.HasTool())
+        var holder = ResolveHolder();
+
+        if (holder == null || !holder.HasTool())
             return;
 
-        if (toolHolder.CurrentTool() != requiredTool)
+        if (holder.CurrentTool() != requiredTool)
             return;
 
         Ray ray = playerCamera.ViewportPointToRay(

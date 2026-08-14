@@ -15,6 +15,10 @@ namespace Game.Net
         public static readonly List<NetPlayer> All = new();
         public static event Action<NetPlayer> LocalPlayerDied;
 
+        /// Task 7 리뷰 반영: 로컬(오너) NetPlayer — PickupItem/WoodBoard 등이 씬에 정적으로
+        /// 배선된 toolHolder 대신 런타임에 실제 로컬 플레이어의 ToolHolder를 찾는 데 쓴다.
+        public static NetPlayer Local { get; private set; }
+
         [Header("빌드 툴이 배선")]
         [SerializeField] Behaviour[] ownerOnly;        // PlayerMovement, FirstPersonCamera, FlashlightController, ToolHolder, CrosshairInteract, AudioListener
         [SerializeField] GameObject ownerCameraObject; // 카메라 GO (원격은 Camera 비활성, transform은 회전 동기 대상)
@@ -33,7 +37,7 @@ namespace Game.Net
         public Camera HeadCamera { get; private set; }
 
         [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
-        static void ResetStatics() { All.Clear(); LocalPlayerDied = null; s_scenePlayer = null; }
+        static void ResetStatics() { All.Clear(); LocalPlayerDied = null; s_scenePlayer = null; Local = null; }
 
         public override void OnNetworkSpawn()
         {
@@ -50,6 +54,7 @@ namespace Game.Net
 
             if (owner)
             {
+                Local = this;
                 Nickname.Value = NicknameUtil.ToFixed(SessionManager.LocalNickname);
                 if (s_scenePlayer == null) s_scenePlayer = GameObject.Find("Player");
                 var scenePlayer = s_scenePlayer;
@@ -71,7 +76,11 @@ namespace Game.Net
             if (!IsAlive.Value) HandleAliveChanged(true, false);
         }
 
-        public override void OnNetworkDespawn() => All.Remove(this);
+        public override void OnNetworkDespawn()
+        {
+            if (Local == this) Local = null;
+            All.Remove(this);
+        }
 
         void Update()
         {

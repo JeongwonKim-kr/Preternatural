@@ -13,10 +13,27 @@ namespace Game.Net
         bool _localTaken;
         public event System.Action<bool, ulong> OnTakenChanged; // (taken, holderClientId)
 
+        // 리뷰 반영: PickupItem 스폰 포인트를 서버가 1회 결정해 전 클라이언트에 배포 —
+        // 각 클라이언트가 따로 Random을 굴리면 스폰 위치가 서로 어긋난다.
+        readonly NetworkVariable<int> _spawnIndex = new(-1);
+        public event System.Action<int> OnSpawnIndexChanged;
+
         public override void OnNetworkSpawn()
         {
             _taken.OnValueChanged += (_, t) => OnTakenChanged?.Invoke(t, _holder.Value);
             if (_taken.Value) OnTakenChanged?.Invoke(true, _holder.Value);
+
+            _spawnIndex.OnValueChanged += (_, idx) => OnSpawnIndexChanged?.Invoke(idx);
+
+            if (IsServer && _spawnIndex.Value < 0)
+            {
+                var pickup = GetComponent<PickupItem>();
+                int count = pickup != null ? pickup.ValidSpawnPointCount : 0;
+                if (count > 0) _spawnIndex.Value = Random.Range(0, count);
+            }
+
+            // 이미 정해진 값이면(서버 자신의 방금 대입 포함/늦은 입장) 다음 틱을 기다리지 않고 즉시 반영.
+            if (_spawnIndex.Value >= 0) OnSpawnIndexChanged?.Invoke(_spawnIndex.Value);
         }
 
         public void RequestPickup()
