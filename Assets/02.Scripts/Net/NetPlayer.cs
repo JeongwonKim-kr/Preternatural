@@ -1,4 +1,5 @@
 using System;
+using System.Collections;
 using System.Collections.Generic;
 using Unity.Collections;
 using Unity.Netcode;
@@ -111,7 +112,21 @@ namespace Game.Net
             foreach (var b in ownerOnly) if (b) b.enabled = false;
             var cc = GetComponent<CharacterController>();
             if (cc) cc.enabled = false;
+            StartCoroutine(ActivateSpectatorFallback());
             LocalPlayerDied?.Invoke(this);
+        }
+
+        /// 관전 카메라 활성의 주 경로는 MonsterNetAdapter.JumpscareRpc(점프스케어 연출 후 5초 뒤 전환)다.
+        /// 이건 그 RPC가 유실되거나 몬스터 공격 이외의 사망 경로가 생길 때를 대비한 안전망 — 같은
+        /// 지연을 둬 점프스케어 연출과 겹치지 않게 하고, 중복 활성(SpectatorCamera.enabled=true 재대입)은
+        /// 무해하므로 두 경로가 함께 실행돼도 문제없다.
+        IEnumerator ActivateSpectatorFallback()
+        {
+            yield return new WaitForSeconds(5f);
+            if (ownerCameraObject == null) yield break;
+            var spectator = ownerCameraObject.GetComponent<Game.Gameplay.SpectatorCamera>()
+                         ?? ownerCameraObject.AddComponent<Game.Gameplay.SpectatorCamera>();
+            spectator.enabled = true;
         }
     }
 }

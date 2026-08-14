@@ -215,6 +215,19 @@ public class MonsterLookAI : MonoBehaviour
 
         if (distance <= attackDistance)
         {
+            // 멀티: 호스트 권위 어댑터가 붙어 있고 세션이 가동 중이면 공격을 서버 경로로 위임한다
+            // (사망 처리/점프스케어 RPC/게임오버는 MonsterNetAdapter.ServerAttack이 맡는다).
+            var adapter = GetComponent<Game.Net.MonsterNetAdapter>();
+            if (adapter != null && Game.Net.NetLink.Online)
+            {
+                var victim = player != null ? player.GetComponentInParent<Game.Net.NetPlayer>() : null;
+                if (victim != null)
+                {
+                    adapter.ServerAttack(victim);
+                    return;
+                }
+            }
+
             Jumpscare();
         }
 
@@ -429,7 +442,9 @@ public class MonsterLookAI : MonoBehaviour
     {
         if (other.CompareTag("Player"))
         {
-            if (objectDisabledAtStart != null)
+            // 멀티: 이 씬에서 objectDisabledAtStart는 DeadScreenController가 붙은 오브젝트와 동일하다
+            // (씬 배선 확인됨) — 온라인에서는 씬 리로드를 유발하는 레거시 사망 화면을 건너뛴다.
+            if (objectDisabledAtStart != null && !Game.Net.NetLink.Online)
                 objectDisabledAtStart.SetActive(true);
         }
     }
@@ -439,7 +454,7 @@ public class MonsterLookAI : MonoBehaviour
     // JUMPSCARE
     // =========================================================
 
-    void Jumpscare()
+    public void Jumpscare()
     {
         if (jumpscaring)
             return;
@@ -455,8 +470,13 @@ public class MonsterLookAI : MonoBehaviour
         if (flashlightObject != null)
             flashlightObject.SetActive(false);
 
-        agent.isStopped = true;
-        agent.velocity = Vector3.zero;
+        // 멀티 원격 희생자 클라이언트에서는 adapter가 agent.enabled=false로 꺼둔 상태로 이 메서드를
+        // 직접 호출한다 — NavMesh 밖(비활성) 에이전트에 isStopped/velocity를 대입하면 예외가 나므로 방어.
+        if (agent != null && agent.isOnNavMesh)
+        {
+            agent.isStopped = true;
+            agent.velocity = Vector3.zero;
+        }
 
         if (playerMovement != null)
             playerMovement.enabled = false;
@@ -464,7 +484,10 @@ public class MonsterLookAI : MonoBehaviour
         if (cameraMovement != null)
             cameraMovement.enabled = false;
 
-        if (jumpscareObject != null)
+        // 멀티: jumpscareObject는 이 씬에서 DeadScreenController가 붙은 오브젝트와 동일하다(씬 배선
+        // 확인됨) — 온라인에서 활성화하면 씬 리로드를 유발하는 레거시 사망 화면이 떠버리므로 건너뛴다.
+        // 관전 전환/게임오버는 MonsterNetAdapter + NetPlayer가 대신 처리한다.
+        if (jumpscareObject != null && !Game.Net.NetLink.Online)
             jumpscareObject.SetActive(true);
 
         ChangeState(

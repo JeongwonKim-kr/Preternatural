@@ -293,16 +293,17 @@ public static class NetSetupTool
         AttachAdapter<PickupItem, NetPickupSync>("PickupItem");
         FixNestedPickupParentSync();
 
-        // MonsterNetAdapter(Task 8)는 아직 없음 — NetworkObject + NetworkTransform(서버 권위 기본)만 부착.
+        // Task 8: NetworkObject + NetworkTransform(서버 권위 기본) + MonsterNetAdapter 부착.
         int monsterCount = 0;
         foreach (var m in Object.FindObjectsByType<MonsterLookAI>(FindObjectsInactive.Include, FindObjectsSortMode.None))
         {
             var go = m.gameObject;
             if (!go.GetComponent<NetworkObject>()) go.AddComponent<NetworkObject>();
             if (!go.GetComponent<NetworkTransform>()) go.AddComponent<NetworkTransform>(); // AuthorityMode 기본값 Server 유지
+            if (!go.GetComponent<MonsterNetAdapter>()) go.AddComponent<MonsterNetAdapter>(); // ai/agent는 OnNetworkSpawn이 GetComponent로 자동 배선
             monsterCount++;
         }
-        Debug.Log($"[NetSetup] MonsterLookAI (MonsterNetAdapter 대기): {monsterCount}개 배선");
+        Debug.Log($"[NetSetup] MonsterLookAI+MonsterNetAdapter: {monsterCount}개 배선");
 
         FixSceneNetworkObjectHashes(scene, GameScenePath);
         Debug.Log("[NetSetup] GameScene 배선 완료");
