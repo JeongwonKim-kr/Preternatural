@@ -285,10 +285,8 @@ public static class NetSetupTool
         AttachAdapter<DoorInteractable, NetToggleSync>("DoorInteractable");
         AttachAdapter<BoardedDoor, NetToggleSync>("BoardedDoor");   // 문 열림 상태
         AttachAdapter<WoodBoard, NetToggleSync>("WoodBoard");       // 판자 제거 상태
-        AttachAdapter<MonitorDoorController, NetToggleSync>("MonitorDoorController");
-        AttachAdapter<MonsterChaseTrigger, NetOneShotSync>("MonsterChaseTrigger");
+        // v.2 병합: MonitorDoorController/MonsterChaseTrigger/MonsterJumpscareTrigger 기능 제거됨
         AttachAdapter<JumpscareTriggerPart2, NetOneShotSync>("JumpscareTriggerPart2");
-        AttachAdapter<MonsterJumpscareTrigger, NetOneShotSync>("MonsterJumpscareTrigger");
 
         AttachAdapter<PickupItem, NetPickupSync>("PickupItem");
         FixNestedPickupParentSync();

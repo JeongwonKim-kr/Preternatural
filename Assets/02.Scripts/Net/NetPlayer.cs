@@ -57,19 +57,8 @@ namespace Game.Net
             {
                 Local = this;
                 Nickname.Value = NicknameUtil.ToFixed(SessionManager.LocalNickname);
-                if (s_scenePlayer == null) s_scenePlayer = GameObject.Find("Player");
-                var scenePlayer = s_scenePlayer;
-                if (scenePlayer && scenePlayer != gameObject)
-                {
-                    // 스폰 위치 = 씬 Player 자리 + 클라이언트별 오프셋 (겹침 방지)
-                    var cc = GetComponent<CharacterController>();
-                    if (cc) cc.enabled = false;
-                    transform.SetPositionAndRotation(
-                        scenePlayer.transform.position + scenePlayer.transform.right * ((OwnerClientId % 4) * 1.4f),
-                        scenePlayer.transform.rotation);
-                    if (cc) cc.enabled = true;
-                    scenePlayer.SetActive(false);
-                }
+                // 씬 활성화가 스폰보다 늦을 수 있어(대형 씬) Find를 재시도 코루틴으로 바인딩.
+                StartCoroutine(BindScenePlayer());
             }
 
             FlashlightOn.OnValueChanged += (_, on) => { if (!IsOwner) remoteFlashlight.enabled = on; };
@@ -94,9 +83,37 @@ namespace Game.Net
             {
                 var cc = GetComponent<CharacterController>();
                 if (cc) cc.enabled = false;
-                transform.position = new Vector3(0f, 2f, 0f);
+                transform.position = s_scenePlayer != null
+                    ? s_scenePlayer.transform.position + Vector3.up * 0.5f
+                    : new Vector3(0f, 2f, 0f);
                 if (cc) cc.enabled = true;
             }
+        }
+
+        /// 씬 Player를 찾을 때까지 재시도 후 스폰 텔레포트 + 씬 Player 비활성.
+        /// NGO 스폰이 씬 활성화 완료 전에 일어나면 GameObject.Find가 실패하므로 1프레임씩 최대 5초 재시도.
+        IEnumerator BindScenePlayer()
+        {
+            float deadline = Time.realtimeSinceStartup + 5f;
+            while (s_scenePlayer == null && Time.realtimeSinceStartup < deadline)
+            {
+                s_scenePlayer = GameObject.Find("Player");
+                if (s_scenePlayer == null) yield return null;
+            }
+            var scenePlayer = s_scenePlayer;
+            if (scenePlayer == null)
+            {
+                Debug.LogWarning("[NetPlayer] 씬 Player를 찾지 못함 — 스폰 텔레포트 생략");
+                yield break;
+            }
+            if (scenePlayer == gameObject) yield break;
+            var cc = GetComponent<CharacterController>();
+            if (cc) cc.enabled = false;
+            transform.SetPositionAndRotation(
+                scenePlayer.transform.position + scenePlayer.transform.right * ((OwnerClientId % 4) * 1.4f),
+                scenePlayer.transform.rotation);
+            if (cc) cc.enabled = true;
+            scenePlayer.SetActive(false);
         }
 
         public void ServerKill()
