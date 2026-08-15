@@ -24,7 +24,6 @@
 - Create `Assets/02.Scripts/UI/LobbyCorridorPreview.cs`: owns preview-scene lifecycle, camera handoff, isolation, and cleanup.
 - Create `Assets/Editor/Tests/LobbyCorridorPreviewTests.cs`: verifies deterministic scene-routing and behavior-whitelist rules.
 - Modify `Assets/02.Scripts/Net/MultiplayerMenu.cs`: awaits preview release immediately before normal game-network startup.
-- Modify `Assets/Editor/Tests/MultiplayerMenuViewTests.cs`: verifies the deterministic game-start release guard.
 
 ### Task 1: Deterministic preview lifecycle
 
@@ -207,53 +206,31 @@ git commit -m "feat: show static corridor in lobby"
 **Files:**
 
 - Modify: `Assets/02.Scripts/Net/MultiplayerMenu.cs:331-370`
-- Modify: `Assets/Editor/Tests/MultiplayerMenuViewTests.cs`
 
 **Interfaces:**
 
 - Consumes: `LobbyCorridorPreview.ReleaseForGameStartAsync() : Task`.
 - Preserves: `SessionManager.StartGameNetworkAsync()` and `NetworkManager.SceneManager.LoadScene(GameSceneName, LoadSceneMode.Single)`.
 
-- [ ] **Step 1: Write the failing start-order test**
+- [ ] **Step 1: Reuse the release lifecycle contract from Task 1**
 
-```csharp
-[Test]
-public void StartGame_RequiresPreviewReleaseBeforeNetworkStart()
-    => Assert.That(MultiplayerMenu.ShouldReleasePreviewBeforeStartingGame(true), Is.True);
-```
+`ReleaseForGameStartAsync()` is already covered by Task 1's deterministic lifecycle contract and Task 2's additive scene unload validation. Do not add a tautological helper or a test-only hook to `MultiplayerMenu`.
 
-- [ ] **Step 2: Run it to verify RED**
-
-```text
-run_tests(mode="EditMode", test_names=["MultiplayerMenuViewTests.StartGame_RequiresPreviewReleaseBeforeNetworkStart"])
-```
-
-Expected: compilation fails because the helper does not exist.
-
-- [ ] **Step 3: Implement and await the release**
-
-Add:
-
-```csharp
-public static bool ShouldReleasePreviewBeforeStartingGame(bool previewEnabled)
-    => previewEnabled;
-```
+- [ ] **Step 2: Implement and await the release**
 
 At the beginning of the successful `OnStartClicked` try block, before `StartGameNetworkAsync()`, add:
 
 ```csharp
-if (ShouldReleasePreviewBeforeStartingGame(true))
-    await LobbyCorridorPreview.ReleaseForGameStartAsync();
+await LobbyCorridorPreview.ReleaseForGameStartAsync();
 await SessionManager.Instance.StartGameNetworkAsync();
 ```
 
 Keep existing host checks, busy behavior, failure messages, and the NGO single-scene load unchanged. A release failure must reach the existing catch and must not start networking.
 
-- [ ] **Step 4: Run the selected regression suites**
+- [ ] **Step 3: Run focused EditMode regression suites**
 
 ```text
 run_tests(mode="EditMode", test_names=[
-  "MultiplayerMenuViewTests",
   "LobbyCorridorPreviewTests",
   "HomeMenuStateTests"
 ])
@@ -261,16 +238,16 @@ run_tests(mode="EditMode", test_names=[
 
 Expected: all selected tests pass.
 
-- [ ] **Step 5: Run the network smoke test**
+- [ ] **Step 4: Run the network smoke test**
 
 Use Unity menu item `Game/Net/스모크 테스트`.
 
-Expected: no `FAIL:` logs; game start still reaches GameScene and normal return to Homescreen works.
+Expected: no `FAIL:` logs; game start reaches GameScene without a duplicate-scene or duplicate-camera failure and normal return to Homescreen works.
 
-- [ ] **Step 6: Commit**
+- [ ] **Step 5: Commit**
 
 ```bash
-git add Assets/02.Scripts/Net/MultiplayerMenu.cs Assets/Editor/Tests/MultiplayerMenuViewTests.cs
+git add Assets/02.Scripts/Net/MultiplayerMenu.cs
 git commit -m "fix: release lobby preview before game start"
 ```
 
@@ -335,4 +312,3 @@ git log --oneline -4
 ```
 
 Expected: no whitespace errors; only known unrelated LFS-filter entries and old untracked files remain outside committed feature files.
-
