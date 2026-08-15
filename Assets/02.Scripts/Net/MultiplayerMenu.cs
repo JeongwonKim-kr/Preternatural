@@ -266,8 +266,23 @@ namespace Game.UI
 
         public void OnStartClicked()
         {
-            if (_busy) return;
-            if (NetworkManager.Singleton == null || !NetworkManager.Singleton.IsHost) return;
+            if (_busy)
+            {
+                Debug.LogWarning("[MultiplayerMenu] OnStartClicked 무시 — 이미 다른 작업 처리 중(_busy=true)");
+                return;
+            }
+            if (NetworkManager.Singleton == null)
+            {
+                _status.text = "네트워크가 초기화되지 않았습니다.";
+                Debug.LogWarning("[MultiplayerMenu] OnStartClicked 무시 — NetworkManager.Singleton == null");
+                return;
+            }
+            if (!NetworkManager.Singleton.IsHost)
+            {
+                _status.text = "호스트만 게임을 시작할 수 있습니다.";
+                Debug.LogWarning("[MultiplayerMenu] OnStartClicked 무시 — 호스트가 아님(IsHost=false)");
+                return;
+            }
 
             _busy = true;
             _status.text = "게임 시작 중...";
