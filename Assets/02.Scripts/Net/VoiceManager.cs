@@ -34,6 +34,8 @@ namespace Game.Voice
         bool _joinInFlight;
         string _pendingChannel; // 조인 진행 중 새 조인 요청이 오면 1칸 대기열로 보관
         float _nextLobbyPositionUpdate;
+        bool _channelLeftSubscribed;
+        bool _loggedLobbyPositionFailure;
 
         void Awake()
         {
@@ -67,6 +69,13 @@ namespace Game.Voice
                 StatusMessage = "보이스 연결 중...";
                 await VivoxService.Instance.InitializeAsync();
 
+                if (!_channelLeftSubscribed)
+                {
+                    // InitializeAsync 성공 이후에만 안전 — VivoxService.Instance는 UGS 초기화 전엔 비어 있을 수 있다.
+                    VivoxService.Instance.ChannelLeft += OnChannelLeft;
+                    _channelLeftSubscribed = true;
+                }
+
                 var nickname = SessionManager.LocalNickname;
                 if (VivoxService.Instance.IsLoggedIn && _loggedInName != nickname)
                 {
@@ -98,6 +107,7 @@ namespace Game.Voice
 
                 ActiveChannel = channelName;
                 VoiceReady = true;
+                _loggedLobbyPositionFailure = false; // 새 채널 조인 성공 — 이전 실패 상태를 잊고 다시 시도할 수 있게 한다
                 StatusMessage = "보이스 켜짐 (M: 음소거)";
                 SetMuted(!LocalPlayerAlive()); // 늦은 조인: 관전 상태로 시작했으면 보이스 준비 시점에 뮤트 재적용
             }
@@ -175,8 +185,51 @@ namespace Game.Voice
             if (!VoiceReady || ActiveChannel == null) return;
             if (Time.unscaledTime < _nextLobbyPositionUpdate) return;
             _nextLobbyPositionUpdate = Time.unscaledTime + LobbyPositionInterval;
+
+            // Set3DPosition은 SDK 내부에서 "채널에 있지 않음" 상황을 예외를 던지지 않고 로그만 남기므로
+            // (VivoxServiceInternal.EnsureIsInChannel), 미리 ActiveChannels를 확인해 그 로그 자체를 피한다 —
+            // 채널이 실제로는 끊겼는데(RTP Timeout 등) 로컬 상태(VoiceReady/ActiveChannel)가 아직 못
+            // 따라잡은 경우를 잡아낸다. ChannelLeft 구독은 이 상태를 더 빨리 반영하기 위한 보조 경로.
+            if (VivoxService.Instance == null || !VivoxService.Instance.ActiveChannels.ContainsKey(ActiveChannel))
+            {
+                HandleLobbyPositionFailure("채널을 이미 이탈한 상태(ActiveChannels에 없음, 예: RTP Timeout)");
+                return;
+            }
+
             transform.SetPositionAndRotation(Vector3.zero, Quaternion.identity);
-            VivoxService.Instance.Set3DPosition(gameObject, ActiveChannel);
+            try
+            {
+                VivoxService.Instance.Set3DPosition(gameObject, ActiveChannel);
+            }
+            catch (Exception e)
+            {
+                HandleLobbyPositionFailure(e.Message);
+            }
+        }
+
+        /// 로비 위치 갱신 실패 처리 — 최초 1회만 경고하고, 보이스 상태를 끊김으로 되돌려
+        /// VoiceReady 가드가 다음 프레임부터 자동으로 갱신을 중단하게 한다(반복 시도 방지).
+        /// 재조인(JoinVoiceAsync)에 성공하면 _loggedLobbyPositionFailure가 초기화돼 다시 경고할 수 있다.
+        void HandleLobbyPositionFailure(string reason)
+        {
+            VoiceReady = false;
+            ActiveChannel = null;
+            StatusMessage = "보이스 연결 끊김";
+            if (_loggedLobbyPositionFailure) return;
+            _loggedLobbyPositionFailure = true;
+            Debug.LogWarning($"[Voice] 로비 위치 갱신 실패 — 보이스 상태를 끊김으로 되돌리고 갱신 중단: {reason}");
+        }
+
+        /// Vivox SDK가 채널 이탈(정상 퇴장 포함)을 알릴 때 호출된다. RTP Timeout 등으로 우리 모르게
+        /// 끊긴 경우를 반영해 VoiceReady를 false로 되돌린다 — 이러면 UpdateLobbyPosition뿐 아니라
+        /// ToggleMute/SetMuted 등 다른 VoiceReady 소비자도 곧바로 정확한 상태를 보게 된다.
+        void OnChannelLeft(string channelName)
+        {
+            if (channelName != ActiveChannel) return; // 우리가 이미 알고 있는 채널이 아님(정리된 이전 채널 등) — 무시
+            VoiceReady = false;
+            ActiveChannel = null;
+            StatusMessage = "보이스 연결 끊김";
+            Debug.LogWarning($"[Voice] 채널 연결 끊김 감지({channelName}) — VoiceReady 해제");
         }
     }
 }
