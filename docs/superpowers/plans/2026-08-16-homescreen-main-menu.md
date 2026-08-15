@@ -26,6 +26,7 @@
 - Modify: `Assets/Editor/Tests/HomeTitleSequenceTests.cs` — tests for cycle and valid glitch presentation samples.
 - Modify: `Assets/02.Scripts/Net/MultiplayerMenu.cs` — two-button main menu, mutually exclusive input cards, and preserved lobby presentation.
 - Create: `Assets/Editor/Tests/MultiplayerMenuViewTests.cs` — public view-selection seam for the runtime menu.
+- Modify: `Assets/02.Scripts/UI/HomeMenuState.cs` — expose whether the main view should show a quit action.
 
 ### Task 1: Define Homescreen Menu State
 
@@ -259,3 +260,50 @@ Expected: only Task 1-3 implementation/test files are newly committed; existing 
 
 Use the existing Unity `Game/빌드 (macOS)` menu path. Verify the generated app starts on Homescreen and visibly shows the title plus two main actions. Do not add the `Builds/` output to Git.
 
+
+### Task 5: Add Homescreen Quit Action
+
+**Files:**
+- Modify: `Assets/02.Scripts/UI/HomeMenuState.cs`
+- Modify: `Assets/02.Scripts/Net/MultiplayerMenu.cs`
+- Modify: `Assets/Editor/Tests/HomeMenuStateTests.cs`
+
+**Interfaces:**
+- Produces: `HomeMenuState.ShowsQuitAction(HomeMenuView view)`; only the unaffiliated `Main` view returns `true`.
+- Consumed by: `MultiplayerMenu.Update` to show the `게임 종료` button only below the main room actions.
+
+- [ ] **Step 1: Write the failing quit-visibility test**
+
+```csharp
+[TestCase(HomeMenuView.Main, true)]
+[TestCase(HomeMenuView.CreateRoom, false)]
+[TestCase(HomeMenuView.JoinRoom, false)]
+[TestCase(HomeMenuView.Lobby, false)]
+public void ShowsQuitAction_OnlyShowsOnMainView(HomeMenuView view, bool expected)
+    => Assert.That(HomeMenuState.ShowsQuitAction(view), Is.EqualTo(expected));
+```
+
+- [ ] **Step 2: Run the test and confirm `ShowsQuitAction` is missing**
+
+Run through Unity MCP: `run_tests(mode="EditMode", test_names=["HomeMenuStateTests"], include_details=true)`.
+
+Expected: compilation failure naming missing `ShowsQuitAction`.
+
+- [ ] **Step 3: Implement the state rule and wire the button**
+
+```csharp
+public static bool ShowsQuitAction(HomeMenuView view) => view == HomeMenuView.Main;
+```
+
+Create the existing-style red `게임 종료` button beneath `방 참여`. In `Update`, activate it from `ShowsQuitAction(view)`. Its click handler must set `UnityEditor.EditorApplication.isPlaying = false` under `UNITY_EDITOR`; otherwise call `Application.Quit()`. Do not alter the existing GameScene Esc-menu exit handler.
+
+- [ ] **Step 4: Run EditMode tests and Play Mode smoke**
+
+Run `HomeMenuStateTests` plus `MultiplayerMenuViewTests`, then enter Homescreen Play Mode and confirm the quit action is visible only on the first main screen. In the Editor, do not click the quit action during smoke validation because it intentionally ends Play Mode.
+
+- [ ] **Step 5: Commit**
+
+```bash
+git add Assets/02.Scripts/UI/HomeMenuState.cs Assets/02.Scripts/Net/MultiplayerMenu.cs Assets/Editor/Tests/HomeMenuStateTests.cs
+git commit -m "feat: add homescreen quit action"
+```
