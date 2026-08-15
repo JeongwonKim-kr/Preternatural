@@ -77,8 +77,21 @@ public void SetXRotation(float rotation)
     xRotation = rotation;
 }
 
+    /// 씬 Canvas의 인트로 페이드 오버레이 이름. NetPlayer 프리팹은 씬 오브젝트를 직렬화할 수
+    /// 없어 blackScreen 참조가 끊기므로, 런타임에 이 이름으로 씬에서 다시 찾는다.
+    /// 찾지 못하면 페이드 없이 진행한다(오버레이가 없는 씬).
+    const string IntroOverlayName = "IntroFadeIn";
+
     void Start()
     {
+        if (blackScreen == null)
+        {
+            blackScreen = FindIntroOverlay();
+            // 멀티에서는 NetPlayer 스폰이 씬 활성화보다 빠를 수 있어 이 시점엔 아직 못 찾는다.
+            // 그 경우 오버레이가 나타날 때까지 기다렸다가 직접 걷어낸다(안 그러면 단색 화면이 남는다).
+            if (blackScreen == null) StartCoroutine(ClearIntroOverlayWhenAvailable());
+        }
+
         Cursor.lockState = CursorLockMode.Locked;
         Cursor.visible = false;
 
@@ -105,6 +118,44 @@ public void SetXRotation(float rotation)
             flashlightController.enabled = false;
 
         StartCoroutine(WakeUpIntroRoutine());
+    }
+
+    static RawImage FindIntroOverlay()
+    {
+        foreach (var overlay in FindObjectsByType<RawImage>(FindObjectsInactive.Include, FindObjectsSortMode.None))
+            if (overlay.name == IntroOverlayName) return overlay;
+        return null;
+    }
+
+    /// 오버레이가 씬에 나타날 때까지 기다렸다가 페이드로 걷어낸다.
+    /// WakeUpIntroRoutine의 페이드 구간(timer <= fadeDuration)은 이미 지났을 수 있으므로
+    /// 여기서 독립적으로 알파를 낮춘다 — 그쪽은 blackScreen이 null인 동안 아무것도 하지 않는다.
+    IEnumerator ClearIntroOverlayWhenAvailable()
+    {
+        float deadline = Time.realtimeSinceStartup + 15f;
+        while (blackScreen == null && Time.realtimeSinceStartup < deadline)
+        {
+            blackScreen = FindIntroOverlay();
+            if (blackScreen == null) yield return null;
+        }
+        if (blackScreen == null)
+        {
+            Debug.LogWarning("[FirstPersonCamera] 인트로 오버레이를 찾지 못함 — 화면이 가려져 있으면 이 경로를 확인할 것");
+            yield break;
+        }
+
+        float elapsed = 0f;
+        Color color = blackScreen.color;
+        float from = color.a;
+        while (elapsed < fadeDuration)
+        {
+            elapsed += Time.deltaTime;
+            color.a = Mathf.Lerp(from, 0f, elapsed / fadeDuration);
+            blackScreen.color = color;
+            yield return null;
+        }
+        color.a = 0f;
+        blackScreen.color = color;
     }
 
 

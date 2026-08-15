@@ -132,6 +132,13 @@ public static class NetSmokeTest
                 else Fail($"스폰 후 접지 실패 (y={lastY:F2}, 기준={sceneY.Value:F2})");
             }
 
+            // 4-b. 화면을 덮는 불투명 UI가 남아 있지 않은지 — 인트로 페이드가 안 풀리면
+            // 게임 화면 대신 단색만 보인다(흰 화면 회귀). 페이드 시간을 감안해 잠시 기다린다.
+            await Task.Delay(4000);
+            var blocker = FindFullscreenOpaqueGraphic();
+            if (blocker == null) Ok("화면 덮는 불투명 오버레이 없음");
+            else Fail($"화면이 불투명 UI로 덮여 있음: {blocker}");
+
             // 5. 보이스 — 실패해도 FAIL 아닌 WARN (에디터 마이크 권한 변수)
             bool voiceReady = await WaitFor(() => VoiceManager.Instance != null && VoiceManager.Instance.VoiceReady, 10f);
             if (voiceReady)
@@ -232,6 +239,24 @@ public static class NetSmokeTest
             Debug.Log($"SMOKE DONE ok={okCount} fail={failCount}");
             EditorApplication.isPlaying = false;
         }
+    }
+
+    /// 화면 대부분을 덮으면서 거의 불투명한 UI 그래픽을 찾는다. 있으면 플레이어에게는
+    /// 게임 화면 대신 단색만 보인다. 없으면 null.
+    static string FindFullscreenOpaqueGraphic()
+    {
+        foreach (var g in UnityEngine.Object.FindObjectsByType<UnityEngine.UI.Graphic>(FindObjectsInactive.Exclude))
+        {
+            if (!g.gameObject.activeInHierarchy || !g.enabled) continue;
+            if (g.color.a < 0.9f) continue;
+            var corners = new Vector3[4];
+            g.rectTransform.GetWorldCorners(corners);
+            float w = corners[2].x - corners[0].x;
+            float h = corners[2].y - corners[0].y;
+            if (w >= Screen.width * 0.9f && h >= Screen.height * 0.9f)
+                return $"{g.name} ({g.GetType().Name}, alpha={g.color.a:F2}, {w:F0}x{h:F0})";
+        }
+        return null;
     }
 
     /// GameScene의 원본 Player(NetPlayer 프리팹이 아닌 씬 오브젝트) y좌표 — 접지 판정 기준점.
