@@ -257,6 +257,11 @@ public static class NetSetupTool
         if (nm.NetworkConfig == null) nm.NetworkConfig = new NetworkConfig();
         nm.NetworkConfig.NetworkTransport = utp;
         nm.NetworkConfig.EnableSceneManagement = true;
+        // 로비 자동 스폰 회귀 수정: ConnectionApproval을 켜야 PlayerSpawner의 콜백이 개입해
+        // CreatePlayerObject=false를 응답할 수 있다(꺼져 있으면 NGO가 PlayerPrefab!=null만 보고
+        // 연결 즉시 자동 스폰 — 로비에서 NetPlayer가 스폰되는 원인이었다). 실제 승인 로직은
+        // PlayerSpawner.OnConnectionApproval(런타임 콜백)이 담당.
+        nm.NetworkConfig.ConnectionApproval = true;
 
         var playerPrefab = AssetDatabase.LoadAssetAtPath<GameObject>(PlayerPrefabPath);
         if (!playerPrefab)
@@ -269,6 +274,7 @@ public static class NetSetupTool
         EnsureComponent<VoiceManager>(bootstrap);
         EnsureComponent<NetworkManagerGuard>(bootstrap);
         EnsureComponent<MultiplayerMenu>(bootstrap); // Task 6 — Homescreen 전용, Awake에서 UGUI 코드 생성
+        EnsureComponent<PlayerSpawner>(bootstrap);   // 로비 자동 스폰 방지 + GameScene 진입 시 수동 스폰
 
         EditorUtility.SetDirty(bootstrap);
         EditorSceneManager.MarkSceneDirty(scene);

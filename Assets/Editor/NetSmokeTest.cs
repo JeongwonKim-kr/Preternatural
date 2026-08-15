@@ -136,6 +136,15 @@ public static class NetSmokeTest
             else
                 Fail("로비 IsHost가 false — 호스트 판정 실패");
 
+            // 로비 자동 스폰 회귀 가드 — NGO는 NetworkConfig.PlayerPrefab이 설정된 채 ConnectionApproval
+            // 콜백이 CreatePlayerObject=false를 응답하지 않으면 연결 즉시(로비 대기 중에도) 플레이어를
+            // 자동 스폰한다(PlayerSpawner가 이를 막는 컴포넌트). 로비 단계에서 NetPlayer가 하나라도
+            // 있으면 그 회귀가 재발한 것 — 씬 Player 미검색/커서 잠금으로 "게임 시작" 클릭 먹통까지 이어진다.
+            if (NetPlayer.All.Count == 0)
+                Ok("로비 단계 NetPlayer 미스폰 확인 (자동 스폰 회귀 가드)");
+            else
+                Fail($"로비 단계에서 NetPlayer가 이미 스폰됨 — 자동 스폰 회귀 (개수={NetPlayer.All.Count})");
+
             // 로비 보이스 — 실패해도 FAIL 아닌 WARN (에디터 마이크 권한 변수)
             if (await WaitFor(() => VoiceManager.Instance != null && VoiceManager.Instance.VoiceReady, 10f))
                 Ok("로비 VoiceManager.VoiceReady 확인");

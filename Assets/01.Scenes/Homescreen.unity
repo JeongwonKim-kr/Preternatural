@@ -324,6 +324,7 @@ GameObject:
   - component: {fileID: 1986816348}
   - component: {fileID: 1986816347}
   - component: {fileID: 1986816354}
+  - component: {fileID: 1986816355}
   m_Layer: 0
   m_Name: NetBootstrap
   m_TagString: Untagged
@@ -432,7 +433,7 @@ MonoBehaviour:
       - {fileID: 11400000, guid: c55130a00acfb4a0eb73ec3be58f03c2, type: 2}
     TickRate: 30
     ClientConnectionBufferTimeout: 10
-    ConnectionApproval: 0
+    ConnectionApproval: 1
     ConnectionData: 
     EnableTimeResync: 0
     TimeResyncInterval: 30
@@ -479,6 +480,18 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 005635c00aa3f4ac5b1f66fb5c2d88da, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::Game.UI.MultiplayerMenu
+--- !u!114 &1986816355
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1986816346}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: de86371576197465e8417c19f3c48e2b, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::Game.Net.PlayerSpawner
 --- !u!1660057539 &9223372036854775807
 SceneRoots:
   m_ObjectHideFlags: 0
