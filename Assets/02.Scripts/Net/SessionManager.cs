@@ -137,11 +137,13 @@ namespace Game.Net
         async Task TryTransferLobbyHostAsync()
         {
             var session = ActiveSession;
-            if (session == null || !session.IsHost || SceneManager.GetActiveScene().name != MenuScene)
-                return;
+            if (session == null) return;
 
             try
             {
+                if (!session.IsHost || SceneManager.GetActiveScene().name != MenuScene)
+                    return;
+
                 var playerIds = new List<string>(session.Players.Count);
                 foreach (var player in session.Players)
                     playerIds.Add(player.Id);
