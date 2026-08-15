@@ -196,6 +196,11 @@ namespace Game.Net
             if (se.Error == SessionError.Unknown && se.Message != null &&
                 se.Message.IndexOf("full", StringComparison.OrdinalIgnoreCase) >= 0)
                 return SessionErrorMessages.For("SessionFull");
+            // "같은 기기 두 번 실행" 버그 리포트의 실제 예외 메시지가 "player is already a member of the
+            // lobby"였다 — se.Error가 LobbyAlreadyExists로 정확히 오는 경우는 아래 기본 경로가 이미
+            // 처리하지만, SDK가 이 케이스도 Unknown으로 뭉갤 가능성에 대비해 메시지 문자열로도 식별한다.
+            if (se.Message != null && se.Message.IndexOf("already a member", StringComparison.OrdinalIgnoreCase) >= 0)
+                return SessionErrorMessages.For("LobbyAlreadyExists");
             return SessionErrorMessages.For(se.Error.ToString());
         }
     }
