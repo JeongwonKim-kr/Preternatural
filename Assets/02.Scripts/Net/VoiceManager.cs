@@ -28,10 +28,12 @@ namespace Game.Voice
 
         const int AudibleDistance = 15;
         const int ConversationalDistance = 2;
+        const float LobbyPositionInterval = 0.5f;
 
         string _loggedInName;
         bool _joinInFlight;
         string _pendingChannel; // 조인 진행 중 새 조인 요청이 오면 1칸 대기열로 보관
+        float _nextLobbyPositionUpdate;
 
         void Awake()
         {
@@ -160,6 +162,21 @@ namespace Game.Voice
             // 여기서도 같이 처리하면 같은 프레임에 두 번 토글되어 상쇄(무반응)된다.
             if (NetPlayer.Local != null) return;
             if (Input.GetKeyDown(KeyCode.M)) ToggleMute();
+
+            UpdateLobbyPosition();
+        }
+
+        /// 로비 동안(NetPlayer.Local이 없는 동안)엔 플레이어가 스폰되지 않아 3D 위치가 갱신되지
+        /// 않는다. 채널을 따로 만들지 않고 전원을 원점/정면에 고정해 거리 감쇠 없이 들리게 한다.
+        /// NetPlayer.Local이 생기면(게임 씬 진입) 이 갱신은 멈추고 VoicePositionUpdater가
+        /// 실제 카메라 위치로 인계한다.
+        void UpdateLobbyPosition()
+        {
+            if (!VoiceReady || ActiveChannel == null) return;
+            if (Time.unscaledTime < _nextLobbyPositionUpdate) return;
+            _nextLobbyPositionUpdate = Time.unscaledTime + LobbyPositionInterval;
+            transform.SetPositionAndRotation(Vector3.zero, Quaternion.identity);
+            VivoxService.Instance.Set3DPosition(gameObject, ActiveChannel);
         }
     }
 }
