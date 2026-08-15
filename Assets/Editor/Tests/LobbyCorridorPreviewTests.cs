@@ -33,4 +33,15 @@ public class LobbyCorridorPreviewTests
     [TestCase("Game.MonsterAI", false)]
     public void KeepsPreviewBehaviour_OnlyKeepsCameraPostProcessing(string typeName, bool expected)
         => Assert.That(LobbyCorridorPreview.KeepsPreviewBehaviour(typeName), Is.EqualTo(expected));
+
+    [TestCase("Homescreen", false, true)]
+    [TestCase("Homescreen", true, false)]
+    [TestCase("GameScene", false, false)]
+    public void ShouldConfigurePreview_RequiresHomescreenWithoutReleaseRequest(
+        string activeSceneName,
+        bool releaseRequested,
+        bool expected)
+        => Assert.That(
+            LobbyCorridorPreview.ShouldConfigurePreview(activeSceneName, releaseRequested),
+            Is.EqualTo(expected));
 }

@@ -16,6 +16,7 @@ namespace Game.UI
 
         bool _previewLoaded;
         bool _previewLoading;
+        bool _releaseRequested;
         Scene _previewScene;
         Camera _previewCamera;
         AudioListener _previewListener;
@@ -23,6 +24,10 @@ namespace Game.UI
         AudioListener _homescreenListener;
         bool _homescreenCameraWasEnabled;
         bool _homescreenListenerWasEnabled;
+        CursorLockMode _homescreenCursorLockMode;
+        bool _homescreenCursorVisible;
+        bool _cursorStateCaptured;
+        Task _loadTask;
         Task _releaseTask;
 
         [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
@@ -56,6 +61,9 @@ namespace Game.UI
             => typeName == "PSXShaderKit.PSXPostProcessEffect" ||
                typeName == "UnityEngine.Rendering.PostProcessing.PostProcessLayer";
 
+        public static bool ShouldConfigurePreview(string activeSceneName, bool releaseRequested)
+            => IsHomescreen(activeSceneName) && !releaseRequested;
+
         public static Task ReleaseForGameStartAsync()
             => s_instance == null ? Task.CompletedTask : s_instance.ReleasePreviewAsync();
 
@@ -84,11 +92,21 @@ namespace Game.UI
         void ReconcilePreview()
         {
             string activeSceneName = SceneManager.GetActiveScene().name;
-            if (ShouldReleasePreview(activeSceneName, _previewLoaded))
+            if (ShouldReleasePreview(activeSceneName, _previewLoaded) ||
+                (_previewLoading && !IsHomescreen(activeSceneName)))
                 _ = ReleasePreviewAsync();
 
             if (ShouldLoadPreview(activeSceneName, _previewLoaded, _previewLoading))
-                _ = LoadPreviewAsync();
+                _ = BeginLoadPreviewAsync();
+        }
+
+        Task BeginLoadPreviewAsync()
+        {
+            if (_loadTask != null) return _loadTask;
+            _releaseRequested = false;
+            CaptureHomescreenCursor();
+            _loadTask = LoadPreviewAsync();
+            return _loadTask;
         }
 
         async Task LoadPreviewAsync()
@@ -100,6 +118,7 @@ namespace Game.UI
                 var loadOperation = SceneManager.LoadSceneAsync(GameSceneName, LoadSceneMode.Additive);
                 if (loadOperation == null)
                 {
+                    _releaseRequested = true;
                     WarnAndRestore("GameScene preview load could not be started.");
                     return;
                 }
@@ -110,28 +129,32 @@ namespace Game.UI
                 _previewScene = SceneManager.GetSceneByName(GameSceneName);
                 if (!_previewScene.IsValid() || !_previewScene.isLoaded)
                 {
+                    _releaseRequested = true;
                     WarnAndRestore("GameScene preview did not load.");
                     return;
                 }
 
-                if (!IsHomescreen(SceneManager.GetActiveScene().name))
-                {
-                    await ReleasePreviewAsync();
-                    return;
-                }
+                if (!ShouldConfigurePreview(SceneManager.GetActiveScene().name, _releaseRequested)) return;
 
                 if (!TryConfigurePreview(_previewScene))
                 {
+                    _releaseRequested = true;
                     WarnAndRestore("GameScene preview is missing Player, its Camera, or its AudioListener.");
-                    await ReleasePreviewAsync();
                     return;
                 }
 
                 _previewLoaded = true;
             }
+            catch (System.Exception exception)
+            {
+                _releaseRequested = true;
+                WarnAndRestore($"GameScene preview failed: {exception.Message}");
+            }
             finally
             {
                 _previewLoading = false;
+                _loadTask = null;
+                if (_releaseRequested) _ = ReleasePreviewAsync();
             }
         }
 
@@ -163,6 +186,7 @@ namespace Game.UI
             _previewListener.enabled = true;
             _homescreenCamera.enabled = false;
             if (_homescreenListener != null) _homescreenListener.enabled = false;
+            UnlockHomescreenCursor();
             return true;
         }
 
@@ -216,11 +240,12 @@ namespace Game.UI
         void WarnAndRestore(string warning)
         {
             Debug.LogWarning($"[LobbyCorridorPreview] {warning}");
-            RestoreHomescreenCamera();
+            RestoreHomescreenPresentation();
         }
 
         Task ReleasePreviewAsync()
         {
+            _releaseRequested = true;
             if (_releaseTask != null) return _releaseTask;
             _releaseTask = ReleasePreviewInternalAsync();
             return _releaseTask;
@@ -228,12 +253,15 @@ namespace Game.UI
 
         async Task ReleasePreviewInternalAsync()
         {
+            Task loadTask = _loadTask;
+            if (loadTask != null) await loadTask;
+
             _previewLoaded = false;
             _previewLoading = false;
 
             Scene previewScene = _previewScene;
             _previewScene = default;
-            RestoreHomescreenCamera();
+            RestoreHomescreenPresentation();
             ClearPreviewReferences();
 
             try
@@ -257,6 +285,36 @@ namespace Game.UI
             if (_homescreenListener != null) _homescreenListener.enabled = _homescreenListenerWasEnabled;
         }
 
+        void CaptureHomescreenCursor()
+        {
+            if (_cursorStateCaptured) return;
+            _homescreenCursorLockMode = Cursor.lockState;
+            _homescreenCursorVisible = Cursor.visible;
+            _cursorStateCaptured = true;
+        }
+
+        void RestoreHomescreenPresentation()
+        {
+            RestoreHomescreenCamera();
+            if (IsHomescreen(SceneManager.GetActiveScene().name))
+                UnlockHomescreenCursor();
+            else
+                RestoreCapturedCursorState();
+        }
+
+        void UnlockHomescreenCursor()
+        {
+            Cursor.lockState = CursorLockMode.None;
+            Cursor.visible = true;
+        }
+
+        void RestoreCapturedCursorState()
+        {
+            if (!_cursorStateCaptured) return;
+            Cursor.lockState = _homescreenCursorLockMode;
+            Cursor.visible = _homescreenCursorVisible;
+        }
+
         void ClearPreviewReferences()
         {
             _previewCamera = null;
@@ -265,6 +323,9 @@ namespace Game.UI
             _homescreenListener = null;
             _homescreenCameraWasEnabled = false;
             _homescreenListenerWasEnabled = false;
+            _homescreenCursorLockMode = CursorLockMode.None;
+            _homescreenCursorVisible = true;
+            _cursorStateCaptured = false;
         }
     }
 }
