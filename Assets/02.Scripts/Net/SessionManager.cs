@@ -120,7 +120,33 @@ namespace Game.Net
         public async Task LeaveRoomAsync()
         {
             if (_ending || ActiveSession == null) return;
+            await TryTransferLobbyHostAsync();
             await EndSessionAsync();
+        }
+
+        async Task TryTransferLobbyHostAsync()
+        {
+            var session = ActiveSession;
+            if (session == null || !session.IsHost || SceneManager.GetActiveScene().name != MenuScene)
+                return;
+
+            var playerIds = new List<string>(session.Players.Count);
+            foreach (var player in session.Players)
+                playerIds.Add(player.Id);
+
+            var successor = LobbyHostElection.SelectSuccessor(session.Host, playerIds);
+            if (successor == null) return;
+
+            try
+            {
+                var hostSession = session.AsHost();
+                hostSession.Host = successor;
+                await hostSession.SavePropertiesAsync();
+            }
+            catch (Exception e)
+            {
+                Debug.LogWarning($"[Session] Lobby host transfer: {e.Message}");
+            }
         }
 
         void Hook(ISession session)
@@ -133,12 +159,14 @@ namespace Game.Net
             session.PlayerHasLeft += OnLobbyPlayerChanged;
             session.PlayerPropertiesChanged += OnLobbyChanged;
             session.Changed += OnLobbyChanged;
+            session.SessionHostChanged += OnLobbyHostChanged;
             NetworkManager.Singleton.OnClientStopped += OnClientStopped;
             SessionStarted?.Invoke(session.Id);
         }
 
         void OnLobbyPlayerChanged(string playerId) => LobbyChanged?.Invoke();
         void OnLobbyChanged() => LobbyChanged?.Invoke();
+        void OnLobbyHostChanged(string hostId) => LobbyChanged?.Invoke();
 
         void OnRemoteEnded()
         {
@@ -171,6 +199,7 @@ namespace Game.Net
                 session.PlayerHasLeft -= OnLobbyPlayerChanged;
                 session.PlayerPropertiesChanged -= OnLobbyChanged;
                 session.Changed -= OnLobbyChanged;
+                session.SessionHostChanged -= OnLobbyHostChanged;
                 try { await session.LeaveAsync(); }
                 catch (Exception e) { Debug.LogWarning($"[Session] LeaveAsync: {e.Message}"); }
             }
