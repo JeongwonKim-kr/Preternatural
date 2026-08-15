@@ -25,4 +25,12 @@ public class LobbyCorridorPreviewTests
         Assert.That(LobbyCorridorPreview.ShouldReleasePreview("Homescreen", true), Is.False);
         Assert.That(LobbyCorridorPreview.ShouldReleasePreview("GameScene", false), Is.False);
     }
+
+    [TestCase("PSXShaderKit.PSXPostProcessEffect", true)]
+    [TestCase("UnityEngine.Rendering.PostProcessing.PostProcessLayer", true)]
+    [TestCase("FirstPersonCamera", false)]
+    [TestCase("PlayerMovement", false)]
+    [TestCase("Game.MonsterAI", false)]
+    public void KeepsPreviewBehaviour_OnlyKeepsCameraPostProcessing(string typeName, bool expected)
+        => Assert.That(LobbyCorridorPreview.KeepsPreviewBehaviour(typeName), Is.EqualTo(expected));
 }
