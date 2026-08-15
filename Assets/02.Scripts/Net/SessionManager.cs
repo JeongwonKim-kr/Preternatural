@@ -76,6 +76,7 @@ namespace Game.Net
         public event Action LobbyChanged;
 
         bool _ending;
+        bool _leavingRoom;
 
         void Awake()
         {
@@ -119,9 +120,18 @@ namespace Game.Net
 
         public async Task LeaveRoomAsync()
         {
-            if (_ending || ActiveSession == null) return;
-            await TryTransferLobbyHostAsync();
-            await EndSessionAsync();
+            if (_leavingRoom || _ending || ActiveSession == null) return;
+
+            _leavingRoom = true;
+            try
+            {
+                await TryTransferLobbyHostAsync();
+                await EndSessionAsync();
+            }
+            finally
+            {
+                _leavingRoom = false;
+            }
         }
 
         async Task TryTransferLobbyHostAsync()
@@ -130,15 +140,15 @@ namespace Game.Net
             if (session == null || !session.IsHost || SceneManager.GetActiveScene().name != MenuScene)
                 return;
 
-            var playerIds = new List<string>(session.Players.Count);
-            foreach (var player in session.Players)
-                playerIds.Add(player.Id);
-
-            var successor = LobbyHostElection.SelectSuccessor(session.Host, playerIds);
-            if (successor == null) return;
-
             try
             {
+                var playerIds = new List<string>(session.Players.Count);
+                foreach (var player in session.Players)
+                    playerIds.Add(player.Id);
+
+                var successor = LobbyHostElection.SelectSuccessor(session.Host, playerIds);
+                if (successor == null) return;
+
                 var hostSession = session.AsHost();
                 hostSession.Host = successor;
                 await hostSession.SavePropertiesAsync();
