@@ -105,3 +105,9 @@ InitTestScene*.unity*
 
 # Auto-generated scenes by play mode tests
 /[Aa]ssets/[Ii]nit[Tt]est[Ss]cene*.unity*
+
+# 테스트/XR 실행 시 생기는 임시 산출물
+/Assets/Resources/PerformanceTestRunInfo.json*
+/Assets/Resources/PerformanceTestRunSettings.json*
+/Assets/XR/Temp/
+/Assets/XR/Temp.meta
