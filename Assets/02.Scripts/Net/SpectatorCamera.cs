@@ -1,4 +1,5 @@
 using UnityEngine;
+using Game.UI;
 
 namespace Game.Gameplay
 {
@@ -19,7 +20,7 @@ namespace Game.Gameplay
 
         void OnEnable()
         {
-            SetCursorLocked(true);
+            if (!IsMenuOpen()) SetCursorLocked(true);
             // 최종 리뷰 Important 4: 이 프로젝트에서는 CameraPivot을 아무도 배선하지 않아 항상 null이었다
             // — 폴백으로 자기 자신을 피벗으로 써서 상하 시점(피치)이 최소한 동작하게 한다.
             if (CameraPivot == null) CameraPivot = transform;
@@ -28,6 +29,7 @@ namespace Game.Gameplay
 
         void Update()
         {
+            if (IsMenuOpen()) return;
             HandleCursor();
 
             if (Cursor.lockState == CursorLockMode.Locked)
@@ -67,5 +69,8 @@ namespace Game.Gameplay
             Cursor.lockState = locked ? CursorLockMode.Locked : CursorLockMode.None;
             Cursor.visible = !locked;
         }
+
+        static bool IsMenuOpen()
+            => InGameEscapeMenu.Instance != null && InGameEscapeMenu.Instance.IsOpen;
     }
 }

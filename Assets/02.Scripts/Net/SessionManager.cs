@@ -27,7 +27,7 @@ namespace Game.Net
         }
 
         public const int MaxPlayers = 4;
-        const string MenuScene = "Homescreen";
+        const string MenuScene = LobbyNetworkLifecycle.HomescreenSceneName;
         const string NamePropertyKey = "name";
 
         public ISession ActiveSession { get; private set; }
@@ -77,6 +77,7 @@ namespace Game.Net
 
         bool _ending;
         bool _leavingRoom;
+        bool _startingGameNetwork;
 
         void Awake()
         {
@@ -95,11 +96,11 @@ namespace Game.Net
                 {
                     [NamePropertyKey] = new PlayerProperty(LocalNickname, VisibilityPropertyOptions.Public)
                 }
-            }.WithRelayNetwork();
+            };
             var session = await MultiplayerService.Instance.CreateSessionAsync(options);
             Hook(session);
-            // 씬 전환 없음 — 방 생성 직후엔 로비에서 대기한다(Homescreen 유지).
-            // 호스트가 [게임 시작]을 눌러야 NetworkManager.SceneManager.LoadScene이 호출된다.
+            // 로비 중에는 Session만 유지한다. Relay/NGO는 게임 시작 시 새 호스트가 만든다.
+            // 이 분리 덕분에 로비 호스트가 나가도 게임 네트워크 migration 없이 후임이 시작할 수 있다.
             return session.Code;
         }
 
@@ -134,6 +135,30 @@ namespace Game.Net
             }
         }
 
+        /// <summary>
+        /// 로비 방장만 게임 직전에 Relay/NGO를 시작한다. 로비 호스트 양도는 항상 이 호출 전이라
+        /// 기존 Relay 호스트를 migration할 필요가 없다.
+        /// </summary>
+        public async Task StartGameNetworkAsync()
+        {
+            var session = ActiveSession;
+            var networkManager = NetworkManager.Singleton;
+            bool networkListening = networkManager != null && networkManager.IsListening;
+            if (_startingGameNetwork || session == null ||
+                !LobbyNetworkLifecycle.CanStartGameNetwork(SceneManager.GetActiveScene().name, session.IsHost, networkListening))
+                throw new InvalidOperationException("게임 네트워크를 시작할 수 있는 로비 방장이 아닙니다.");
+
+            _startingGameNetwork = true;
+            try
+            {
+                await session.AsHost().Network.StartRelayNetworkAsync(RelayNetworkOptions.Default);
+            }
+            finally
+            {
+                _startingGameNetwork = false;
+            }
+        }
+
         async Task TryTransferLobbyHostAsync()
         {
             var session = ActiveSession;
@@ -141,7 +166,9 @@ namespace Game.Net
 
             try
             {
-                if (!session.IsHost || SceneManager.GetActiveScene().name != MenuScene)
+                bool networkListening = NetworkManager.Singleton != null && NetworkManager.Singleton.IsListening;
+                if (!session.IsHost || _startingGameNetwork ||
+                    !LobbyNetworkLifecycle.CanTransferPreGameHost(SceneManager.GetActiveScene().name, networkListening))
                     return;
 
                 var playerIds = new List<string>(session.Players.Count);

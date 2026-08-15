@@ -1,6 +1,7 @@
 using System;
 using System.Collections;
 using Game.UI;
+using Game.Gameplay;
 using Unity.Netcode;
 using UnityEditor;
 using UnityEditor.SceneManagement;
@@ -82,6 +83,16 @@ public static class InGameMenuSmokeTest
             Debug.Log("[InGameMenuSmoke] OK: 싱글 Esc 메뉴가 시간을 멈춤");
         else
             Debug.LogError("[InGameMenuSmoke] FAIL: 싱글 Esc 메뉴 상태");
+
+        var spectatorObject = new GameObject("InGameMenuSpectatorProbe");
+        var spectator = spectatorObject.AddComponent<SpectatorCamera>();
+        spectator.enabled = true;
+        yield return null;
+        if (Cursor.lockState == CursorLockMode.None && Cursor.visible)
+            Debug.Log("[InGameMenuSmoke] OK: 메뉴 중 관전 전환이 커서를 다시 잠그지 않음");
+        else
+            Debug.LogError("[InGameMenuSmoke] FAIL: 메뉴 중 관전 전환이 커서를 다시 잠금");
+        UnityEngine.Object.Destroy(spectatorObject);
 
         menu.CloseForTests();
         if (!menu.IsOpen && Mathf.Approximately(Time.timeScale, originalTimeScale))
