@@ -40,7 +40,7 @@ namespace Game.Core
                 if (UnityServices.State == ServicesInitializationState.Uninitialized)
                 {
                     var profile = AuthProfile.Resolve(
-                        Environment.GetCommandLineArgs(), Application.dataPath, Application.isEditor);
+                        Environment.GetCommandLineArgs(), Application.dataPath, Application.persistentDataPath, Application.isEditor);
                     var options = new InitializationOptions();
                     options.SetProfile(profile);
                     await UnityServices.InitializeAsync(options);
