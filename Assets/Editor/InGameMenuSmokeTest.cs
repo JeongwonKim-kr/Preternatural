@@ -89,6 +89,58 @@ public static class InGameMenuSmokeTest
         else
             Debug.LogError("[InGameMenuSmoke] FAIL: 닫을 때 원래 시간 배율을 복구하지 못함");
 
+        var lifecycleProbe = RunMultiplayerControlLifecycleProbe();
+        while (lifecycleProbe.MoveNext())
+            yield return lifecycleProbe.Current;
         yield return null;
+    }
+
+    static IEnumerator RunMultiplayerControlLifecycleProbe()
+    {
+        var playerObject = new GameObject("InGameMenuLifecycleProbe", typeof(CharacterController));
+        var movement = playerObject.AddComponent<PlayerMovement>();
+        var cameraObject = new GameObject("Camera");
+        cameraObject.transform.SetParent(playerObject.transform, false);
+        var firstPersonCamera = cameraObject.AddComponent<FirstPersonCamera>();
+        firstPersonCamera.playerMovement = movement;
+
+        movement.SetMenuInputSuppressed(true);
+        firstPersonCamera.SetMenuInputSuppressed(true);
+        Cursor.lockState = CursorLockMode.None;
+        Cursor.visible = true;
+
+        // 실제 MonoBehaviour.Start가 실행되어도, 이미 열린 메뉴를 뒤늦게 잠그면 안 된다.
+        yield return null;
+        if (Cursor.lockState == CursorLockMode.None && Cursor.visible)
+            Debug.Log("[InGameMenuSmoke] OK: 늦게 시작한 로컬 컨트롤이 메뉴 커서를 유지");
+        else
+            Debug.LogError("[InGameMenuSmoke] FAIL: 늦게 시작한 로컬 컨트롤이 메뉴 커서를 다시 잠금");
+
+        // 깨어남/은신 해제처럼 메뉴 도중 권위 코드가 enable한 상태는 메뉴 해제 뒤에도 유지해야 한다.
+        movement.enabled = false;
+        firstPersonCamera.enabled = false;
+        movement.SetMenuInputSuppressed(true);
+        firstPersonCamera.SetMenuInputSuppressed(true);
+        movement.enabled = true;
+        firstPersonCamera.enabled = true;
+        movement.SetMenuInputSuppressed(false);
+        firstPersonCamera.SetMenuInputSuppressed(false);
+        bool newerEnabledStatePreserved = movement.enabled && firstPersonCamera.enabled;
+
+        // 사망/은신 진입처럼 메뉴 도중 권위 코드가 disable한 상태도 stale snapshot으로 되살리면 안 된다.
+        movement.SetMenuInputSuppressed(true);
+        firstPersonCamera.SetMenuInputSuppressed(true);
+        movement.enabled = false;
+        firstPersonCamera.enabled = false;
+        movement.SetMenuInputSuppressed(false);
+        firstPersonCamera.SetMenuInputSuppressed(false);
+        bool newerDisabledStatePreserved = !movement.enabled && !firstPersonCamera.enabled;
+
+        if (newerEnabledStatePreserved && newerDisabledStatePreserved)
+            Debug.Log("[InGameMenuSmoke] OK: 메뉴 해제가 최신 권위 enabled 상태를 보존");
+        else
+            Debug.LogError("[InGameMenuSmoke] FAIL: 메뉴 해제가 stale enabled 상태를 복원");
+
+        UnityEngine.Object.Destroy(playerObject);
     }
 }

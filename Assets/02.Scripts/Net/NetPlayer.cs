@@ -15,6 +15,8 @@ namespace Game.Net
     {
         public static readonly List<NetPlayer> All = new();
         public static event Action<NetPlayer> LocalPlayerDied;
+        /// 로컬 PlayerObject가 준비된 즉시 발생. GameScene 진입 직후 메뉴가 이미 열려 있어도 입력을 넘기지 않게 한다.
+        public static event Action<NetPlayer> LocalPlayerAvailable;
 
         /// Task 7 리뷰 반영: 로컬(오너) NetPlayer — PickupItem/WoodBoard 등이 씬에 정적으로
         /// 배선된 toolHolder 대신 런타임에 실제 로컬 플레이어의 ToolHolder를 찾는 데 쓴다.
@@ -38,7 +40,14 @@ namespace Game.Net
         public Camera HeadCamera { get; private set; }
 
         [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
-        static void ResetStatics() { All.Clear(); LocalPlayerDied = null; s_scenePlayer = null; Local = null; }
+        static void ResetStatics()
+        {
+            All.Clear();
+            LocalPlayerDied = null;
+            LocalPlayerAvailable = null;
+            s_scenePlayer = null;
+            Local = null;
+        }
 
         public override void OnNetworkSpawn()
         {
@@ -56,6 +65,7 @@ namespace Game.Net
             if (owner)
             {
                 Local = this;
+                LocalPlayerAvailable?.Invoke(this);
                 Nickname.Value = NicknameUtil.ToFixed(SessionManager.LocalNickname);
                 ownerCameraObject.AddComponent<Game.Voice.VoicePositionUpdater>();
                 gameObject.AddComponent<Game.UI.MicStatusHud>(); // 좌하단 마이크 상태 HUD 코드 생성

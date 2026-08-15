@@ -12,7 +12,11 @@ namespace Game.UI
     {
         const string HomescreenSceneName = "Homescreen";
 
-        readonly List<SavedBehaviourState> _savedBehaviours = new();
+        readonly List<SavedBehaviourState> _offlineSavedBehaviours = new();
+        // NGO에서는 enabled를 스냅샷 복원하지 않는다. 최신 사망/인트로/은신 상태를 보존하고
+        // 메뉴가 소유한 입력 억제 플래그만 열고 닫는다.
+        readonly List<PlayerMovement> _suppressedMovements = new();
+        readonly List<FirstPersonCamera> _suppressedCameras = new();
 
         GameObject _canvasObject;
         float _savedTimeScale;
@@ -20,6 +24,7 @@ namespace Game.UI
         bool _savedCursorVisible;
         bool _hasSavedState;
         bool _pausedWorld;
+        bool _multiplayerListening;
 
         public static InGameEscapeMenu Instance { get; private set; }
         public bool IsOpen { get; private set; }
@@ -56,6 +61,7 @@ namespace Game.UI
             Instance = this;
             DontDestroyOnLoad(gameObject);
             SceneManager.activeSceneChanged += OnActiveSceneChanged;
+            NetPlayer.LocalPlayerAvailable += OnLocalPlayerAvailable;
             RebuildForScene(SceneManager.GetActiveScene());
         }
 
@@ -71,6 +77,7 @@ namespace Game.UI
         void OnDestroy()
         {
             SceneManager.activeSceneChanged -= OnActiveSceneChanged;
+            NetPlayer.LocalPlayerAvailable -= OnLocalPlayerAvailable;
             RestoreSavedState();
             if (Instance == this) Instance = null;
         }
@@ -108,16 +115,15 @@ namespace Game.UI
             if (_canvasObject == null) BuildUi();
 
             var networkManager = NetworkManager.Singleton;
-            bool multiplayerListening = networkManager != null && networkManager.IsListening;
+            _multiplayerListening = networkManager != null && networkManager.IsListening;
 
             _savedTimeScale = Time.timeScale;
             _savedCursorLockMode = Cursor.lockState;
             _savedCursorVisible = Cursor.visible;
             _hasSavedState = true;
-            _pausedWorld = InGameMenuState.ShouldPauseWorld(multiplayerListening);
+            _pausedWorld = InGameMenuState.ShouldPauseWorld(_multiplayerListening);
 
-            CaptureLocalBehaviours(networkManager, multiplayerListening);
-            if (multiplayerListening) DisableSavedBehaviours();
+            CaptureLocalBehaviours(networkManager, _multiplayerListening);
             if (_pausedWorld) Time.timeScale = 0f;
 
             Cursor.lockState = CursorLockMode.None;
@@ -137,38 +143,51 @@ namespace Game.UI
         {
             if (!_hasSavedState) return;
 
-            foreach (var saved in _savedBehaviours)
+            foreach (var saved in _offlineSavedBehaviours)
             {
                 if (saved.Behaviour != null) saved.Behaviour.enabled = saved.Enabled;
+            }
+
+            foreach (var movement in _suppressedMovements)
+            {
+                if (movement != null) movement.SetMenuInputSuppressed(false);
+            }
+
+            foreach (var firstPersonCamera in _suppressedCameras)
+            {
+                if (firstPersonCamera != null) firstPersonCamera.SetMenuInputSuppressed(false);
             }
 
             if (_pausedWorld) Time.timeScale = _savedTimeScale;
             Cursor.lockState = _savedCursorLockMode;
             Cursor.visible = _savedCursorVisible;
 
-            _savedBehaviours.Clear();
+            _offlineSavedBehaviours.Clear();
+            _suppressedMovements.Clear();
+            _suppressedCameras.Clear();
             _hasSavedState = false;
             _pausedWorld = false;
+            _multiplayerListening = false;
         }
 
         void CaptureLocalBehaviours(NetworkManager networkManager, bool multiplayerListening)
         {
-            _savedBehaviours.Clear();
+            _offlineSavedBehaviours.Clear();
+            _suppressedMovements.Clear();
+            _suppressedCameras.Clear();
 
             if (multiplayerListening)
             {
                 var localPlayer = networkManager.LocalClient?.PlayerObject;
                 if (localPlayer != null)
                 {
-                    Capture(localPlayer.GetComponentsInChildren<PlayerMovement>(true));
-                    Capture(localPlayer.GetComponentsInChildren<FirstPersonCamera>(true));
+                    SuppressLocalControls(localPlayer.gameObject);
                     return;
                 }
 
                 // NGO가 GameScene 진입 직후 아직 PlayerObject를 만들기 전이면, 네트워크 루트가 없는
                 // 씬 기본 Player가 잠시 로컬 입력을 소유한다. 원격 NetworkObject는 절대 건드리지 않는다.
-                CaptureScenePlayerWithoutNetworkObject<PlayerMovement>();
-                CaptureScenePlayerWithoutNetworkObject<FirstPersonCamera>();
+                SuppressScenePlayerWithoutNetworkObject();
                 return;
             }
 
@@ -185,34 +204,59 @@ namespace Game.UI
             }
         }
 
-        void CaptureScenePlayerWithoutNetworkObject<T>() where T : Behaviour
+        void SuppressScenePlayerWithoutNetworkObject()
         {
             var activeScene = SceneManager.GetActiveScene();
-            foreach (var behaviour in FindObjectsByType<T>(FindObjectsInactive.Include, FindObjectsSortMode.None))
+            foreach (var movement in FindObjectsByType<PlayerMovement>(FindObjectsInactive.Include, FindObjectsSortMode.None))
             {
-                if (behaviour.gameObject.scene == activeScene &&
-                    behaviour.GetComponentInParent<NetworkObject>() == null)
-                    Save(behaviour);
+                if (movement.gameObject.scene == activeScene &&
+                    movement.GetComponentInParent<NetworkObject>() == null)
+                    Suppress(movement);
+            }
+
+            foreach (var firstPersonCamera in FindObjectsByType<FirstPersonCamera>(FindObjectsInactive.Include, FindObjectsSortMode.None))
+            {
+                if (firstPersonCamera.gameObject.scene == activeScene &&
+                    firstPersonCamera.GetComponentInParent<NetworkObject>() == null)
+                    Suppress(firstPersonCamera);
             }
         }
 
-        void Capture<T>(T[] behaviours) where T : Behaviour
+        void OnLocalPlayerAvailable(NetPlayer localPlayer)
         {
-            foreach (var behaviour in behaviours) Save(behaviour);
+            if (!IsOpen || !_multiplayerListening || localPlayer == null || !localPlayer.IsOwner) return;
+
+            SuppressLocalControls(localPlayer.gameObject);
+            Cursor.lockState = CursorLockMode.None;
+            Cursor.visible = true;
+        }
+
+        void SuppressLocalControls(GameObject localPlayer)
+        {
+            foreach (var movement in localPlayer.GetComponentsInChildren<PlayerMovement>(true))
+                Suppress(movement);
+            foreach (var firstPersonCamera in localPlayer.GetComponentsInChildren<FirstPersonCamera>(true))
+                Suppress(firstPersonCamera);
+        }
+
+        void Suppress(PlayerMovement movement)
+        {
+            if (movement == null || _suppressedMovements.Contains(movement)) return;
+            _suppressedMovements.Add(movement);
+            movement.SetMenuInputSuppressed(true);
+        }
+
+        void Suppress(FirstPersonCamera firstPersonCamera)
+        {
+            if (firstPersonCamera == null || _suppressedCameras.Contains(firstPersonCamera)) return;
+            _suppressedCameras.Add(firstPersonCamera);
+            firstPersonCamera.SetMenuInputSuppressed(true);
         }
 
         void Save(Behaviour behaviour)
         {
             if (behaviour != null)
-                _savedBehaviours.Add(new SavedBehaviourState(behaviour, behaviour.enabled));
-        }
-
-        void DisableSavedBehaviours()
-        {
-            foreach (var saved in _savedBehaviours)
-            {
-                if (saved.Behaviour != null) saved.Behaviour.enabled = false;
-            }
+                _offlineSavedBehaviours.Add(new SavedBehaviourState(behaviour, behaviour.enabled));
         }
 
         void SetDisplayMode(DisplayModePreference preference)

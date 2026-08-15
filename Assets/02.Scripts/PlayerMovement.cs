@@ -54,6 +54,13 @@ public class PlayerMovement : MonoBehaviour
 
     private bool staminaUsed;
 public bool isHiding = false;
+// enabled는 인트로/은신/사망 쪽 권위 상태다. 메뉴는 별도 입력 억제 플래그만 소유한다.
+private bool menuInputSuppressed;
+
+public void SetMenuInputSuppressed(bool suppressed)
+{
+    menuInputSuppressed = suppressed;
+}
 
 
 
@@ -61,8 +68,11 @@ public bool isHiding = false;
     {
         controller = GetComponent<CharacterController>();
 
-        Cursor.lockState = CursorLockMode.Locked;
-        Cursor.visible = false;
+        if (!menuInputSuppressed)
+        {
+            Cursor.lockState = CursorLockMode.Locked;
+            Cursor.visible = false;
+        }
 
 
         stamina = maxStamina;
@@ -88,6 +98,9 @@ public bool isHiding = false;
 
     void Update()
     {
+        if (menuInputSuppressed)
+            return;
+
         MovePlayer();
 
         ApplyGravity();
