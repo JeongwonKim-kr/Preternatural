@@ -48,6 +48,7 @@ namespace Game.UI
         }
 
         GameObject _canvasGo;
+        GameObject _backdrop;
         GameObject _panel;
         GameObject _joinCreateGroup;
         GameObject _sessionGroup;
@@ -254,6 +255,7 @@ namespace Game.UI
         {
             _panelOpen = open;
             _panel.SetActive(open);
+            _backdrop.SetActive(open);
             if (open) UnlockCursor();
         }
 
@@ -393,6 +395,9 @@ namespace Game.UI
             canvas.renderMode = RenderMode.ScreenSpaceOverlay;
             canvas.sortingOrder = 100;
 
+            // 4K(3840x2160)와 1080p 양쪽에서 패널이 비슷한 비율로 보이도록 ScaleWithScreenSize +
+            // referenceResolution 1920x1080 + matchWidthOrHeight 0.5(폭/높이 절반씩 반영)를 유지한다.
+            // 아래 패널 크기(600 등)는 전부 이 기준 해상도 단위다.
             var scaler = _canvasGo.AddComponent<CanvasScaler>();
             scaler.uiScaleMode = CanvasScaler.ScaleMode.ScaleWithScreenSize;
             scaler.referenceResolution = new Vector2(1920, 1080);
@@ -408,20 +413,36 @@ namespace Game.UI
             openRt.anchoredPosition = new Vector2(-20, 20);
             _openBtn.onClick.AddListener(OnOpenToggleClicked);
 
-            // 패널(토글 대상) — 버튼 바로 위에 붙고, 내용에 따라 위로 자란다(피벗 하단 고정).
+            // 패널 뒤 배경 — 화면 정중앙에 패널보다 살짝 큰 어두운 판을 깔아 게임 배경과 분리감을 주고
+            // 텍스트 가독성을 확보한다. 전체 화면을 가리지 않도록 패널 영역 주변으로만 크기를 고정한다
+            // (패널은 ContentSizeFitter로 상태별 높이가 달라지므로, 두 상태 모두 넉넉히 담는 고정 크기로
+            // 둔다). 클릭을 가로채지 않도록 raycastTarget은 끈다 — 다른 Homescreen UI 동작에 영향 없음.
+            _backdrop = new GameObject("PanelBackdrop", typeof(RectTransform));
+            _backdrop.transform.SetParent(_canvasGo.transform, false);
+            var backdropRt = _backdrop.GetComponent<RectTransform>();
+            SetAnchor(backdropRt, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f));
+            backdropRt.sizeDelta = new Vector2(680, 680);
+            backdropRt.anchoredPosition = Vector2.zero;
+            var backdropImg = _backdrop.AddComponent<Image>();
+            backdropImg.color = new Color(0.02f, 0.02f, 0.03f, 0.55f);
+            backdropImg.raycastTarget = false;
+
+            // 패널(토글 대상) — 화면 중앙에 정렬하고, 폭을 넉넉히(600) 고정해 세로로만 길어지는 것을
+            // 막는다(기존 340 고정폭 + 세로 레이아웃이 좁고 긴 막대로 보이던 문제의 원인이었다).
+            // 높이는 내용에 따라 ContentSizeFitter로 자란다(피벗 중앙 고정이라 위아래로 고르게 자람).
             _panel = new GameObject("Panel", typeof(RectTransform));
             _panel.transform.SetParent(_canvasGo.transform, false);
             var panelRt = _panel.GetComponent<RectTransform>();
-            SetAnchor(panelRt, new Vector2(1, 0), new Vector2(1, 0), new Vector2(1, 0));
-            panelRt.sizeDelta = new Vector2(340, 0);
-            panelRt.anchoredPosition = new Vector2(-20, 84);
+            SetAnchor(panelRt, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f));
+            panelRt.sizeDelta = new Vector2(600, 0);
+            panelRt.anchoredPosition = Vector2.zero;
 
             var panelImg = _panel.AddComponent<Image>();
-            panelImg.color = new Color(0.05f, 0.06f, 0.08f, 0.92f);
+            panelImg.color = new Color(0.05f, 0.06f, 0.08f, 0.94f);
 
             var panelLayout = _panel.AddComponent<VerticalLayoutGroup>();
-            panelLayout.padding = new RectOffset(16, 16, 16, 16);
-            panelLayout.spacing = 8;
+            panelLayout.padding = new RectOffset(32, 32, 28, 28);
+            panelLayout.spacing = 10;
             panelLayout.childAlignment = TextAnchor.UpperCenter;
             panelLayout.childControlWidth = true;
             panelLayout.childControlHeight = true;
@@ -431,7 +452,7 @@ namespace Game.UI
             var panelFitter = _panel.AddComponent<ContentSizeFitter>();
             panelFitter.verticalFit = ContentSizeFitter.FitMode.PreferredSize;
 
-            CreateLabel(_panel.transform, "Title", "멀티플레이", 24, FontStyles.Bold, 30);
+            CreateLabel(_panel.transform, "Title", "멀티플레이", 26, FontStyles.Bold, 34);
 
             // --- 방 만들기 / 코드 입장 그룹 (세션 중엔 숨김) ---
             _joinCreateGroup = CreateGroup(_panel.transform, "JoinCreateGroup");
@@ -453,12 +474,15 @@ namespace Game.UI
             _sessionGroup = CreateGroup(_panel.transform, "SessionGroup");
             _sessionGroup.SetActive(false);
 
-            // 방 코드 — 참가자에게 불러줄 값이라 크게 표시.
-            _roomCodeText = CreateLabel(_sessionGroup.transform, "RoomCodeText", "방 코드: ------", 28, FontStyles.Bold, 38);
+            // 방 코드 — 다른 참가자에게 불러줘야 하는 값이라 패널에서 가장 크고 눈에 띄게 표시한다.
+            _roomCodeText = CreateLabel(_sessionGroup.transform, "RoomCodeText", "방 코드: ------", 44, FontStyles.Bold, 60);
+            _roomCodeText.color = new Color(0.6f, 0.95f, 0.8f);
+            if (_roomCodeText is TextMeshProUGUI roomCodeTmp) roomCodeTmp.characterSpacing = 3f;
 
-            _playerCountText = CreateLabel(_sessionGroup.transform, "PlayerCountText", $"인원 0/{SessionManager.MaxPlayers}", 18, FontStyles.Normal, 26);
+            // 인원/참가자 목록은 방 코드 바로 아래, 더 작은 크기로 명확히 구분해 표시한다.
+            _playerCountText = CreateLabel(_sessionGroup.transform, "PlayerCountText", $"인원 0/{SessionManager.MaxPlayers}", 20, FontStyles.Normal, 28);
 
-            _playerListText = CreateLabel(_sessionGroup.transform, "PlayerListText", "", 16, FontStyles.Normal, 100);
+            _playerListText = CreateLabel(_sessionGroup.transform, "PlayerListText", "", 18, FontStyles.Normal, 100);
             _playerListText.alignment = TextAlignmentOptions.TopLeft;
 
             // 마이크 상태 + M키 안내 한 줄 — 보이스 채널은 세션 참가 시점에 조인되므로 세션 중 그룹에 둔다.
@@ -482,6 +506,7 @@ namespace Game.UI
             _status.color = new Color(1f, 0.85f, 0.4f);
 
             _panel.SetActive(false); // 기본은 접힘
+            _backdrop.SetActive(false);
             _panelOpen = false;
         }
 
