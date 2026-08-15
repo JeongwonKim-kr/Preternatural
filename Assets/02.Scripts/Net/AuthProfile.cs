@@ -1,8 +1,11 @@
 using System;
+using System.Collections.Generic;
+using System.Diagnostics;
+using System.Globalization;
 using System.IO;
 using System.Security.Cryptography;
 using System.Text;
-using UnityEngine;
+using Debug = UnityEngine.Debug;
 
 namespace Game.Core
 {
@@ -12,21 +15,25 @@ namespace Game.Core
     /// -authProfile도 없이 같은 기기에서 빌드를 두 번 실행하면(사용자가 앱을 그냥 두 번 열기 등)
     /// 둘 다 "default" 프로필이 되어 같은 익명 PlayerId를 쓰게 되고, 두 번째 참가가 세션 SDK에
     /// "player is already a member of the lobby"로 거부된다(첫 번째 연결도 함께 밀려남).
-    /// 이를 막기 위해 -authProfile이 없는 비-에디터 경로는 persistentDataPath 아래 슬롯 잠금 파일로
+    /// 이를 막기 위해 -authProfile이 없는 비-에디터 경로는 persistentDataPath 아래 PID claim 파일로
     /// 같은 기기의 동시 인스턴스를 자동으로 분리한다 — ResolveLocalSlotProfile 참고.
-    /// 프로필 미분리 시 같은 익명 PlayerId가 되어 두 번째 참가가 409로 거부된다.
+    ///
+    /// 최초 구현은 FileShare.None으로 잠금 파일을 열어 배타 점유를 흉내냈으나, macOS/Mono 실측
+    /// (빌드를 두 번 연속 실행)에서 둘 다 "default"를 받는 것으로 확인됐다 — Mono의 유닉스 FileStream
+    /// 구현은 FileShare 제약을 커널 레벨(fcntl/flock)로 걸지 않고 프로세스 내부적으로만 관리하므로,
+    /// 별도 프로세스에서 같은 파일을 FileShare.None으로 열어도 충돌 없이 성공해 버린다(같은 프로세스
+    /// 안에서 반복 호출한 검증만으로는 이 구멍이 드러나지 않았다). 그래서 파일 잠금이 아니라 PID
+    /// 생존 여부로 슬롯을 정하는 방식으로 교체했다.
     public static class AuthProfile
     {
-        /// 동시 실행 가능한 로컬 인스턴스 상한. 코옵 최대 인원(4)보다 넉넉히 잡아 같은 기기에서
-        /// 테스트용으로 여러 창을 띄우는 경우까지 커버한다.
-        const int MaxLocalSlots = 8;
-        const string SlotFilePrefix = "authslot_";
+        const string ClaimFilePrefix = "authslot_";
+        const string ClaimFileSuffix = ".claim";
 
-        /// 슬롯 잠금 파일 핸들. 앱 수명 동안 static으로 들고 있어야 잠금이 유지된다 — 로컬 변수로 두면
-        /// GC가 FileStream을 회수하며 파일 핸들이 닫혀 잠금이 조기에 풀리고, 곧이어 뜬 다른 인스턴스가
-        /// 같은 슬롯을 다시 점유해 버릴 수 있다. 프로세스가 종료되면 OS가 핸들을 회수해 자동으로
-        /// 슬롯이 반납되므로 재실행해도 번호가 무한정 쌓이지 않는다.
-        static FileStream s_slotLock;
+        /// 재사용된 PID를 다른 프로세스로 오인하지 않도록, claim 파일에 PID뿐 아니라 그 PID의 실제
+        /// OS 프로세스 시작 시각(Ticks)도 함께 적어 둔다. 스캔 시 그 PID가 지금 살아있어도 시작 시각이
+        /// 다르면(=그 PID가 죽고 다른 프로세스가 같은 번호를 재사용) 죽은 것으로 간주해 정리한다.
+        static string s_claimFilePath;
+        static bool s_quitHandlerRegistered;
 
         public static string Resolve(string[] commandLineArgs, string dataPath, string persistentDataPath, bool isEditor)
         {
@@ -38,44 +45,123 @@ namespace Game.Core
             return ResolveLocalSlotProfile(persistentDataPath);
         }
 
-        /// persistentDataPath 아래 authslot_N.lock 파일을 FileShare.None으로 순서대로 열어보며 처음
-        /// 성공하는 슬롯 번호로 프로필을 정한다. 슬롯 0은 항상 "default"(기존 계정과 동일하게 유지 —
-        /// 단독 실행 사용자는 지금까지와 똑같은 프로필을 쓴다), 1번부터는 "p1", "p2" ... 로 분리된다.
-        /// 전부 점유돼 있거나 파일 I/O가 실패하면 예외로 죽지 않고 "default"로 폴백하며 경고를 남긴다
-        /// (그 경우 여전히 같은 기기 동시 실행 시 세션 충돌이 재발할 수 있음을 로그로 알린다).
+        /// persistentDataPath 아래 authslot_<pid>.claim 파일들로 같은 기기의 동시 인스턴스를 센다.
+        /// 1) 자기 PID로 claim 파일을 쓴다(내용: 자기 프로세스의 실제 시작 시각 Ticks).
+        /// 2) 디렉터리의 모든 claim 파일을 스캔해, 그 PID가 죽었거나(Process.GetProcessById 실패/
+        ///    HasExited) 시작 시각이 기록과 다르면(PID 재사용) 파일을 지운다.
+        /// 3) 살아남은(=진짜 살아있는) PID들을 오름차순 정렬해 자기 순번을 구한다.
+        /// 4) 순번 0 = "default"(기존 계정과 동일하게 유지 — 단독 실행 사용자는 지금까지와 같은
+        ///    프로필), 1번부터는 "p1", "p2" ...
+        /// 파일 I/O가 실패하면 예외로 죽지 않고 "default"로 폴백하며 경고를 남긴다.
         internal static string ResolveLocalSlotProfile(string persistentDataPath)
         {
             try
             {
                 Directory.CreateDirectory(persistentDataPath);
-                for (int slot = 0; slot < MaxLocalSlots; slot++)
-                {
-                    var path = Path.Combine(persistentDataPath, $"{SlotFilePrefix}{slot}.lock");
-                    try
-                    {
-                        var fs = new FileStream(path, FileMode.OpenOrCreate, FileAccess.ReadWrite, FileShare.None);
-                        // 이전 잠금이 남아 있다면(정상 경로에서는 Resolve가 프로세스당 1회만 불리므로
-                        // 없어야 하지만) GC의 비결정적 회수에 기대지 않고 여기서 명시적으로 닫아,
-                        // 그 슬롯이 즉시 다른 인스턴스에 재사용 가능하도록 한다.
-                        s_slotLock?.Dispose();
-                        s_slotLock = fs; // static 참조 유지 — 앱 종료 전까지 잠금 보존
-                        return slot == 0 ? "default" : $"p{slot}";
-                    }
-                    catch (IOException)
-                    {
-                        // 다른 인스턴스가 이미 이 슬롯을 점유 중 — 다음 슬롯 시도
-                    }
-                }
+
+                var self = Process.GetCurrentProcess();
+                int pid = self.Id;
+                long startTicks = SafeStartTimeTicks(self);
+
+                s_claimFilePath = Path.Combine(persistentDataPath, $"{ClaimFilePrefix}{pid}{ClaimFileSuffix}");
+                File.WriteAllText(s_claimFilePath, startTicks.ToString(CultureInfo.InvariantCulture));
+                RegisterQuitCleanup();
+
+                var alivePids = ScanAndCleanClaims(persistentDataPath);
+                if (!alivePids.Contains(pid)) alivePids.Add(pid); // 방금 쓴 자기 claim이 스캔에 안 잡혔을 극히 드문 경우의 안전망
+                alivePids.Sort();
+
+                int index = alivePids.IndexOf(pid);
+                if (index < 0) index = 0; // 이론상 도달 불가 — 폴백
+                return index == 0 ? "default" : $"p{index}";
             }
             catch (Exception e)
             {
-                Debug.LogWarning($"[AuthProfile] 프로필 슬롯 잠금 파일 처리 실패 — \"default\"로 폴백: {e.Message}");
+                Debug.LogWarning($"[AuthProfile] PID 기반 프로필 슬롯 처리 실패 — \"default\"로 폴백: {e.Message}");
                 return "default";
             }
+        }
 
-            Debug.LogWarning($"[AuthProfile] 사용 가능한 프로필 슬롯이 없습니다(최대 {MaxLocalSlots}개 전부 점유) — " +
-                              "\"default\"로 폴백. 같은 기기에서 여러 인스턴스를 실행 중이면 계정이 겹쳐 세션 참가가 거부될 수 있습니다.");
-            return "default";
+        /// claim 디렉터리를 스캔해 죽은(또는 PID 재사용된) 항목은 삭제하고, 실제로 살아있는 PID
+        /// 목록을 돌려준다.
+        static List<int> ScanAndCleanClaims(string persistentDataPath)
+        {
+            var alive = new List<int>();
+            string[] files;
+            try { files = Directory.GetFiles(persistentDataPath, $"{ClaimFilePrefix}*{ClaimFileSuffix}"); }
+            catch (Exception e)
+            {
+                Debug.LogWarning($"[AuthProfile] claim 디렉터리 스캔 실패: {e.Message}");
+                return alive;
+            }
+
+            foreach (var file in files)
+            {
+                var name = Path.GetFileNameWithoutExtension(file); // authslot_<pid>
+                if (!name.StartsWith(ClaimFilePrefix, StringComparison.Ordinal)) continue;
+                var pidStr = name.Substring(ClaimFilePrefix.Length);
+                if (!int.TryParse(pidStr, NumberStyles.Integer, CultureInfo.InvariantCulture, out var filePid))
+                {
+                    TryDelete(file);
+                    continue;
+                }
+
+                if (IsClaimAlive(filePid, file)) alive.Add(filePid);
+                else TryDelete(file);
+            }
+            return alive;
+        }
+
+        /// filePid가 실제로 살아있고, claim 파일에 적힌 시작 시각이 그 프로세스의 실제 시작 시각과
+        /// 일치하면(=PID가 재사용되지 않았으면) true.
+        static bool IsClaimAlive(int filePid, string claimFilePath)
+        {
+            Process proc;
+            try { proc = Process.GetProcessById(filePid); }
+            catch (ArgumentException) { return false; } // 그 PID의 프로세스가 없음
+            catch (InvalidOperationException) { return false; }
+
+            try { if (proc.HasExited) return false; }
+            catch { return false; }
+
+            long recordedTicks;
+            try
+            {
+                var text = File.ReadAllText(claimFilePath).Trim();
+                if (!long.TryParse(text, NumberStyles.Integer, CultureInfo.InvariantCulture, out recordedTicks))
+                    return true; // 파싱 실패 — 형식은 낡았지만 생존 여부는 확인됐으니 보수적으로 살아있다고 본다
+            }
+            catch { return true; }
+
+            long actualTicks = SafeStartTimeTicks(proc);
+            if (actualTicks == 0) return true; // 시작 시각을 못 읽는 환경 — 생존 확인만으로 판단(성능 저하 없음, 오탐만 완화 못 함)
+
+            // OS/파일시스템의 시각 해상도 차이를 감안해 2초 이내 오차는 같은 프로세스로 본다.
+            return Math.Abs(actualTicks - recordedTicks) <= TimeSpan.FromSeconds(2).Ticks;
+        }
+
+        static long SafeStartTimeTicks(Process p)
+        {
+            try { return p.StartTime.Ticks; }
+            catch { return 0; } // 권한/플랫폼 제약으로 못 읽는 경우 — 재사용 감지만 못 할 뿐, 생존 판정 자체는 여전히 유효
+        }
+
+        static void TryDelete(string path)
+        {
+            try { File.Delete(path); } catch { /* 다음 스캔에서 다시 시도됨 — 무해 */ }
+        }
+
+        /// 앱 종료 시 자기 claim 파일을 지운다. 실패하거나(강제 종료 등) 아예 호출되지 않아도
+        /// 무해하다 — 다음 실행이 죽은 PID로 판정해 청소한다.
+        static void RegisterQuitCleanup()
+        {
+            if (s_quitHandlerRegistered) return;
+            s_quitHandlerRegistered = true;
+            UnityEngine.Application.quitting += () =>
+            {
+                if (string.IsNullOrEmpty(s_claimFilePath)) return;
+                TryDelete(s_claimFilePath);
+            };
         }
 
         static string Sanitize(string raw)
