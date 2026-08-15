@@ -50,11 +50,14 @@ namespace Game.UI
         GameObject _canvasGo;
         GameObject _backdrop;
         GameObject _panel;
-        GameObject _joinCreateGroup;
+        GameObject _mainActionsGroup;
+        GameObject _createRoomGroup;
+        GameObject _joinRoomGroup;
         GameObject _sessionGroup;
         GameObject _eventSystemGo;
 
-        TMP_InputField _nickInput;
+        TMP_InputField _createNicknameInput;
+        TMP_InputField _joinNicknameInput;
         TMP_InputField _codeInput;
         TMP_Text _status;
         TMP_Text _roomCodeText;
@@ -63,11 +66,12 @@ namespace Game.UI
         TMP_Text _waitingText;
         TMP_Text _micStatusText;
 
-        Button _openBtn, _createBtn, _joinBtn, _copyCodeBtn, _startBtn, _leaveBtn;
+        Button _showCreateBtn, _showJoinBtn, _createBtn, _joinBtn, _createBackBtn, _joinBackBtn;
+        Button _copyCodeBtn, _startBtn, _leaveBtn;
 
         bool _busy;
-        bool _panelOpen;
         bool _showedNotReadyMsg;
+        HomeMenuView _requestedView = HomeMenuView.Main;
 
         // ---------- 로비 표시 상태 ----------
         // LobbyChanged 구독 + 1초 폴링 안전망(값이 실제로 바뀐 경우에만 다시 그린다).
@@ -94,7 +98,7 @@ namespace Game.UI
             if (_canvasGo.activeSelf != onHome)
             {
                 _canvasGo.SetActive(onHome);
-                if (onHome) UnlockCursor(); // 게임 씬(커서 잠금)에서 돌아온 직후 — 안 풀면 토글 버튼조차 못 누른다(jungwon 함정 ⑧)
+                if (onHome) UnlockCursor(); // 게임 씬(커서 잠금)에서 돌아온 직후 — 메인 메뉴를 즉시 조작할 수 있게 한다.
                 else _busy = false; // 씬을 벗어나는 시점에 리셋 — OnStartClicked 성공 경로가 busy를 풀지 않으므로
                                      // 여기서 안 풀면 이후 세션 종료→Homescreen 복귀 시 패널이 영구 먹통이 된다.
                                      // 성공 직후 곧바로 풀면 씬 전환 전 이중 클릭 창이 생기므로, 씬 이탈 시점이 안전하다.
@@ -108,16 +112,23 @@ namespace Game.UI
             bool inSession = SessionManager.Instance != null && SessionManager.Instance.InSession;
             bool isHost = SessionManager.Instance != null && SessionManager.Instance.IsHost;
 
-            _joinCreateGroup.SetActive(!inSession);
-            _sessionGroup.SetActive(inSession);
+            var view = HomeMenuState.Select(inSession, _requestedView);
+            _mainActionsGroup.SetActive(view == HomeMenuView.Main);
+            _createRoomGroup.SetActive(view == HomeMenuView.CreateRoom);
+            _joinRoomGroup.SetActive(view == HomeMenuView.JoinRoom);
+            _sessionGroup.SetActive(view == HomeMenuView.Lobby);
             _copyCodeBtn.gameObject.SetActive(inSession && !string.IsNullOrEmpty(SessionManager.Instance?.JoinCode));
             _startBtn.gameObject.SetActive(isHost);
             _waitingText.gameObject.SetActive(!isHost);
 
             if (!_busy)
             {
+                _showCreateBtn.interactable = ready;
+                _showJoinBtn.interactable = ready;
                 _createBtn.interactable = ready;
                 _joinBtn.interactable = ready;
+                _createBackBtn.interactable = ready;
+                _joinBackBtn.interactable = ready;
                 _leaveBtn.interactable = ready;
                 _startBtn.interactable = ready;
 
@@ -137,7 +148,7 @@ namespace Game.UI
 
                 if (ready && !string.IsNullOrEmpty(SessionManager.LastEndReason))
                 {
-                    if (!_panelOpen) SetPanelOpen(true); // 접혀 있어도 종료 사유는 놓치지 않도록 자동으로 펼침
+                    _requestedView = HomeMenuView.Main;
                     _status.text = SessionManager.LastEndReason;
                     SessionManager.LastEndReason = null;
                 }
@@ -250,7 +261,12 @@ namespace Game.UI
 
         // ---------- 버튼 핸들러 ----------
 
-        void OnOpenToggleClicked() => SetPanelOpen(!_panelOpen);
+        public static HomeMenuView VisibleViewForTests(bool inSession, HomeMenuView requested)
+            => HomeMenuState.Select(inSession, requested);
+
+        void ShowCreateRoom() => _requestedView = HomeMenuView.CreateRoom;
+        void ShowJoinRoom() => _requestedView = HomeMenuView.JoinRoom;
+        void ShowMainActions() => _requestedView = HomeMenuView.Main;
 
         public void CopyJoinCodeForTests()
         {
@@ -260,21 +276,13 @@ namespace Game.UI
             SetIdle("방 번호를 복사했습니다.");
         }
 
-        void SetPanelOpen(bool open)
-        {
-            _panelOpen = open;
-            _panel.SetActive(open);
-            _backdrop.SetActive(open);
-            if (open) UnlockCursor();
-        }
-
         public async void OnCreateClicked()
         {
             if (_busy) return;
             SetBusy("방 생성 중...");
             try
             {
-                await SessionManager.Instance.CreateRoomAsync(_nickInput.text);
+                await SessionManager.Instance.CreateRoomAsync(_createNicknameInput.text);
                 // 성공: 씬 전환 없이 로비에서 대기한다(Homescreen 유지). InSession=true가 되면
                 // 다음 Update에서 세션 패널(방 코드/인원/참가자 목록/게임 시작)이 열린다.
                 if (this) _busy = false;
@@ -299,7 +307,7 @@ namespace Game.UI
             SetBusy("참가 중...");
             try
             {
-                await SessionManager.Instance.JoinRoomAsync(code, _nickInput.text);
+                await SessionManager.Instance.JoinRoomAsync(code, _joinNicknameInput.text);
                 if (this) _busy = false; // 씬 동기화는 NGO가 자동 처리 — 완료 전까지는 세션 패널이 대기 상태를 보여준다
             }
             catch (Exception e)
@@ -373,8 +381,12 @@ namespace Game.UI
         void SetBusy(string msg)
         {
             _busy = true;
+            _showCreateBtn.interactable = false;
+            _showJoinBtn.interactable = false;
             _createBtn.interactable = false;
             _joinBtn.interactable = false;
+            _createBackBtn.interactable = false;
+            _joinBackBtn.interactable = false;
             _leaveBtn.interactable = false;
             _startBtn.interactable = false;
             _status.text = msg;
@@ -425,37 +437,24 @@ namespace Game.UI
 
             _canvasGo.AddComponent<GraphicRaycaster>();
 
-            // 우하단 토글 버튼 — 레이아웃 그룹에 속하지 않고 화면에 고정 배치된다.
-            _openBtn = CreateButton(_canvasGo.transform, "OpenButton", "멀티플레이", new Color(0.15f, 0.55f, 0.95f, 0.95f));
-            var openRt = _openBtn.GetComponent<RectTransform>();
-            SetAnchor(openRt, new Vector2(1, 0), new Vector2(1, 0), new Vector2(1, 0));
-            openRt.sizeDelta = new Vector2(150, 48);
-            openRt.anchoredPosition = new Vector2(-20, 20);
-            _openBtn.onClick.AddListener(OnOpenToggleClicked);
-
-            // 패널 뒤 배경 — 화면 정중앙에 패널보다 살짝 큰 어두운 판을 깔아 게임 배경과 분리감을 주고
-            // 텍스트 가독성을 확보한다. 전체 화면을 가리지 않도록 패널 영역 주변으로만 크기를 고정한다
-            // (패널은 ContentSizeFitter로 상태별 높이가 달라지므로, 두 상태 모두 넉넉히 담는 고정 크기로
-            // 둔다). 클릭을 가로채지 않도록 raycastTarget은 끈다 — 다른 Homescreen UI 동작에 영향 없음.
+            // 제목 아래의 메뉴 카드. 배경은 입력을 가로채지 않고, 패널만 버튼과 필드를 처리한다.
             _backdrop = new GameObject("PanelBackdrop", typeof(RectTransform));
             _backdrop.transform.SetParent(_canvasGo.transform, false);
             var backdropRt = _backdrop.GetComponent<RectTransform>();
             SetAnchor(backdropRt, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f));
-            backdropRt.sizeDelta = new Vector2(680, 680);
-            backdropRt.anchoredPosition = Vector2.zero;
+            backdropRt.sizeDelta = new Vector2(680, 560);
+            backdropRt.anchoredPosition = new Vector2(0f, -150f);
             var backdropImg = _backdrop.AddComponent<Image>();
             backdropImg.color = new Color(0.02f, 0.02f, 0.03f, 0.55f);
             backdropImg.raycastTarget = false;
 
-            // 패널(토글 대상) — 화면 중앙에 정렬하고, 폭을 넉넉히(600) 고정해 세로로만 길어지는 것을
-            // 막는다(기존 340 고정폭 + 세로 레이아웃이 좁고 긴 막대로 보이던 문제의 원인이었다).
-            // 높이는 내용에 따라 ContentSizeFitter로 자란다(피벗 중앙 고정이라 위아래로 고르게 자람).
+            // 높이는 현재 메뉴 상태에 따라 내용만큼 늘어난다.
             _panel = new GameObject("Panel", typeof(RectTransform));
             _panel.transform.SetParent(_canvasGo.transform, false);
             var panelRt = _panel.GetComponent<RectTransform>();
             SetAnchor(panelRt, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f));
             panelRt.sizeDelta = new Vector2(600, 0);
-            panelRt.anchoredPosition = Vector2.zero;
+            panelRt.anchoredPosition = new Vector2(0f, -150f);
 
             var panelImg = _panel.AddComponent<Image>();
             panelImg.color = new Color(0.05f, 0.06f, 0.08f, 0.94f);
@@ -472,23 +471,41 @@ namespace Game.UI
             var panelFitter = _panel.AddComponent<ContentSizeFitter>();
             panelFitter.verticalFit = ContentSizeFitter.FitMode.PreferredSize;
 
-            CreateLabel(_panel.transform, "Title", "멀티플레이", 26, FontStyles.Bold, 34);
+            // --- 시작 화면: 제목 아래의 두 직접 진입 버튼 ---
+            _mainActionsGroup = CreateGroup(_panel.transform, "MainActions");
+            _showCreateBtn = CreateButton(_mainActionsGroup.transform, "ShowCreateButton", "방 만들기", new Color(0.2f, 0.6f, 0.3f, 0.95f));
+            AddHeight(_showCreateBtn.gameObject, 52);
+            _showCreateBtn.onClick.AddListener(ShowCreateRoom);
+            _showJoinBtn = CreateButton(_mainActionsGroup.transform, "ShowJoinButton", "방 참여", new Color(0.2f, 0.45f, 0.75f, 0.95f));
+            AddHeight(_showJoinBtn.gameObject, 52);
+            _showJoinBtn.onClick.AddListener(ShowJoinRoom);
 
-            // --- 방 만들기 / 코드 입장 그룹 (세션 중엔 숨김) ---
-            _joinCreateGroup = CreateGroup(_panel.transform, "JoinCreateGroup");
-
-            _nickInput = CreateInputField(_joinCreateGroup.transform, "NickInput", "닉네임", 44);
-            _nickInput.characterLimit = NicknameCharLimit;
-
-            _createBtn = CreateButton(_joinCreateGroup.transform, "CreateButton", "방 만들기", new Color(0.2f, 0.6f, 0.3f, 0.95f));
+            // --- 방 만들기 카드 ---
+            _createRoomGroup = CreateGroup(_panel.transform, "CreateRoomCard");
+            _createRoomGroup.SetActive(false);
+            CreateLabel(_createRoomGroup.transform, "CreateTitle", "새 방 만들기", 24, FontStyles.Bold, 34);
+            _createNicknameInput = CreateInputField(_createRoomGroup.transform, "CreateNicknameInput", "닉네임", 44);
+            _createNicknameInput.characterLimit = NicknameCharLimit;
+            _createBtn = CreateButton(_createRoomGroup.transform, "CreateButton", "방 만들기", new Color(0.2f, 0.6f, 0.3f, 0.95f));
             AddHeight(_createBtn.gameObject, 44);
             _createBtn.onClick.AddListener(OnCreateClicked);
+            _createBackBtn = CreateButton(_createRoomGroup.transform, "CreateBackButton", "뒤로", new Color(0.28f, 0.28f, 0.32f, 0.95f));
+            AddHeight(_createBackBtn.gameObject, 40);
+            _createBackBtn.onClick.AddListener(ShowMainActions);
 
-            _codeInput = CreateInputField(_joinCreateGroup.transform, "CodeInput", "코드 입력", 44);
-
-            _joinBtn = CreateButton(_joinCreateGroup.transform, "JoinButton", "코드 입장", new Color(0.2f, 0.45f, 0.75f, 0.95f));
+            // --- 방 참여 카드 ---
+            _joinRoomGroup = CreateGroup(_panel.transform, "JoinRoomCard");
+            _joinRoomGroup.SetActive(false);
+            CreateLabel(_joinRoomGroup.transform, "JoinTitle", "방 참여", 24, FontStyles.Bold, 34);
+            _joinNicknameInput = CreateInputField(_joinRoomGroup.transform, "JoinNicknameInput", "닉네임", 44);
+            _joinNicknameInput.characterLimit = NicknameCharLimit;
+            _codeInput = CreateInputField(_joinRoomGroup.transform, "CodeInput", "방 코드", 44);
+            _joinBtn = CreateButton(_joinRoomGroup.transform, "JoinButton", "방 참여", new Color(0.2f, 0.45f, 0.75f, 0.95f));
             AddHeight(_joinBtn.gameObject, 44);
             _joinBtn.onClick.AddListener(OnJoinClicked);
+            _joinBackBtn = CreateButton(_joinRoomGroup.transform, "JoinBackButton", "뒤로", new Color(0.28f, 0.28f, 0.32f, 0.95f));
+            AddHeight(_joinBackBtn.gameObject, 40);
+            _joinBackBtn.onClick.AddListener(ShowMainActions);
 
             // --- 세션 중 그룹 (방 만들기/입장 전엔 숨김) ---
             _sessionGroup = CreateGroup(_panel.transform, "SessionGroup");
@@ -529,9 +546,8 @@ namespace Game.UI
             _status = CreateLabel(_panel.transform, "StatusText", "닉네임 입력 후 방을 만들거나 코드로 입장하세요.", 18, FontStyles.Normal, 48);
             _status.color = new Color(1f, 0.85f, 0.4f);
 
-            _panel.SetActive(false); // 기본은 접힘
-            _backdrop.SetActive(false);
-            _panelOpen = false;
+            _panel.SetActive(true);
+            _backdrop.SetActive(true);
         }
 
         static GameObject CreateGroup(Transform parent, string name)
