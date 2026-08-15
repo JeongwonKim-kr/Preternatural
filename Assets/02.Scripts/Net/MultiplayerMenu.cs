@@ -55,12 +55,26 @@ namespace Game.UI
         TMP_InputField _codeInput;
         TMP_Text _status;
         TMP_Text _roomCodeText;
+        TMP_Text _playerCountText;
+        TMP_Text _playerListText;
+        TMP_Text _waitingText;
 
         Button _openBtn, _createBtn, _joinBtn, _startBtn, _leaveBtn;
 
         bool _busy;
         bool _panelOpen;
         bool _showedNotReadyMsg;
+
+        // ---------- 로비 표시 상태 ----------
+        // LobbyChanged 구독 + 1초 폴링 안전망(값이 실제로 바뀐 경우에만 다시 그린다).
+        // MultiplayerMenu는 앱 수명 동안 파괴되지 않으므로(클래스 상단 주석 참고) 구독 해제가 불필요하다.
+        bool _lobbySubscribed;
+        bool _lobbyDirty;
+        float _nextLobbyPoll;
+        string _lastJoinCode;
+        int _lastPlayerCount = -1;
+        bool _lastIsHost;
+        string _lastPlayerNamesJoined;
 
         void Awake()
         {
@@ -84,14 +98,16 @@ namespace Game.UI
             if (!onHome) return;
 
             EnsureEventSystem();
+            EnsureLobbySubscription();
 
             bool ready = GameBootstrap.IsReady;
             bool inSession = SessionManager.Instance != null && SessionManager.Instance.InSession;
-            bool isHost = NetworkManager.Singleton != null && NetworkManager.Singleton.IsHost;
+            bool isHost = SessionManager.Instance != null && SessionManager.Instance.IsHost;
 
             _joinCreateGroup.SetActive(!inSession);
             _sessionGroup.SetActive(inSession);
             _startBtn.gameObject.SetActive(isHost);
+            _waitingText.gameObject.SetActive(!isHost);
 
             if (!_busy)
             {
@@ -122,8 +138,78 @@ namespace Game.UI
                 }
             }
 
-            if (inSession && SessionManager.Instance != null)
-                _roomCodeText.text = $"방 코드: {SessionManager.Instance.JoinCode}";
+            if (inSession) UpdateLobbyDisplay();
+            else ResetLobbySnapshot(); // 세션 밖에서는 다음 진입 시 즉시 다시 그리도록 캐시를 무효화
+        }
+
+        // ---------- 로비 표시 ----------
+
+        void EnsureLobbySubscription()
+        {
+            if (_lobbySubscribed || SessionManager.Instance == null) return;
+            SessionManager.Instance.LobbyChanged += OnLobbyChanged;
+            _lobbySubscribed = true;
+        }
+
+        void OnLobbyChanged() => _lobbyDirty = true;
+
+        void ResetLobbySnapshot()
+        {
+            _lastJoinCode = null;
+            _lastPlayerCount = -1;
+        }
+
+        void UpdateLobbyDisplay()
+        {
+            // 이벤트 유실에 대비한 안전망 — 1초마다 실제 값이 바뀌었는지 확인하고, 바뀐 경우에만 다시 그린다.
+            if (Time.unscaledTime >= _nextLobbyPoll)
+            {
+                _nextLobbyPoll = Time.unscaledTime + 1f;
+                if (LobbySnapshotChanged()) _lobbyDirty = true;
+            }
+
+            if (!_lobbyDirty) return;
+            _lobbyDirty = false;
+            RedrawLobby();
+        }
+
+        bool LobbySnapshotChanged()
+        {
+            var sm = SessionManager.Instance;
+            if (sm == null) return false;
+
+            string code = sm.JoinCode;
+            int count = sm.PlayerCount;
+            bool host = sm.IsHost;
+            string namesJoined = string.Join("|", sm.PlayerNames);
+
+            bool changed = code != _lastJoinCode || count != _lastPlayerCount ||
+                           host != _lastIsHost || namesJoined != _lastPlayerNamesJoined;
+
+            _lastJoinCode = code;
+            _lastPlayerCount = count;
+            _lastIsHost = host;
+            _lastPlayerNamesJoined = namesJoined;
+            return changed;
+        }
+
+        void RedrawLobby()
+        {
+            var sm = SessionManager.Instance;
+            if (sm == null) return;
+
+            _roomCodeText.text = $"방 코드: {sm.JoinCode}";
+            _playerCountText.text = $"인원 {sm.PlayerCount}/{SessionManager.MaxPlayers}";
+
+            var names = sm.PlayerNames;
+            var sb = new System.Text.StringBuilder();
+            for (int i = 0; i < names.Count; i++)
+            {
+                if (i > 0) sb.Append('\n');
+                sb.Append(names[i]);
+                if (i == 0) sb.Append(" (호스트)"); // PlayerNames는 항상 호스트를 맨 앞에 둔다
+            }
+            _playerListText.text = sb.ToString();
         }
 
         // ---------- 버튼 핸들러 ----------
@@ -144,9 +230,8 @@ namespace Game.UI
             try
             {
                 await SessionManager.Instance.CreateRoomAsync(_nickInput.text);
-                // 성공: SessionManager가 내부적으로 GameScene 로드를 시도한다. 그게 조용히 실패해도
-                // (로그만 남고 씬은 그대로) InSession=true이므로 다음 Update에서 세션 패널의
-                // [게임 시작]으로 수동 재시도할 수 있다 — 여기서 UI를 추가로 건드릴 필요 없음.
+                // 성공: 씬 전환 없이 로비에서 대기한다(Homescreen 유지). InSession=true가 되면
+                // 다음 Update에서 세션 패널(방 코드/인원/참가자 목록/게임 시작)이 열린다.
                 if (this) _busy = false;
             }
             catch (Exception e)
@@ -319,11 +404,21 @@ namespace Game.UI
             _sessionGroup = CreateGroup(_panel.transform, "SessionGroup");
             _sessionGroup.SetActive(false);
 
-            _roomCodeText = CreateLabel(_sessionGroup.transform, "RoomCodeText", "방 코드: ------", 20, FontStyles.Bold, 30);
+            // 방 코드 — 참가자에게 불러줄 값이라 크게 표시.
+            _roomCodeText = CreateLabel(_sessionGroup.transform, "RoomCodeText", "방 코드: ------", 28, FontStyles.Bold, 38);
+
+            _playerCountText = CreateLabel(_sessionGroup.transform, "PlayerCountText", $"인원 0/{SessionManager.MaxPlayers}", 18, FontStyles.Normal, 26);
+
+            _playerListText = CreateLabel(_sessionGroup.transform, "PlayerListText", "", 16, FontStyles.Normal, 100);
+            _playerListText.alignment = TextAlignmentOptions.TopLeft;
 
             _startBtn = CreateButton(_sessionGroup.transform, "StartButton", "게임 시작", new Color(0.75f, 0.55f, 0.15f, 0.95f));
             AddHeight(_startBtn.gameObject, 44);
             _startBtn.onClick.AddListener(OnStartClicked);
+
+            // 참가자에게는 시작 버튼 대신 이 안내를 보여준다(호스트 재량으로 언제든 시작 가능).
+            _waitingText = CreateLabel(_sessionGroup.transform, "WaitingText", "호스트가 시작하기를 기다리는 중", 16, FontStyles.Italic, 40);
+            _waitingText.color = new Color(0.8f, 0.8f, 0.8f);
 
             _leaveBtn = CreateButton(_sessionGroup.transform, "LeaveButton", "나가기", new Color(0.7f, 0.2f, 0.2f, 0.95f));
             AddHeight(_leaveBtn.gameObject, 44);
