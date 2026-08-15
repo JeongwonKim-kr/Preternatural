@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Threading.Tasks;
 using Game.Core;
 using Unity.Netcode;
@@ -26,16 +27,53 @@ namespace Game.Net
         }
 
         public const int MaxPlayers = 4;
-        const string GameScene = "GameScene";
         const string MenuScene = "Homescreen";
+        const string NamePropertyKey = "name";
 
         public ISession ActiveSession { get; private set; }
         public string JoinCode => ActiveSession?.Code;
         public bool InSession => ActiveSession != null;
 
+        /// 로비 대기실 상태 — UI가 Sessions API를 직접 다루지 않도록 하는 경계.
+        public bool IsHost => ActiveSession?.IsHost ?? false;
+        public int PlayerCount => ActiveSession?.PlayerCount ?? 0;
+
+        /// 참가자 이름 목록, 호스트가 맨 앞. 이름 프로퍼티가 없거나 비어 있으면 "플레이어 N"(N=1부터,
+        /// Players 순회 순번)으로 대체한다.
+        public IReadOnlyList<string> PlayerNames
+        {
+            get
+            {
+                var session = ActiveSession;
+                if (session?.Players == null) return Array.Empty<string>();
+
+                string hostId = session.Host;
+                string hostName = null;
+                var others = new List<string>(session.Players.Count);
+                int n = 0;
+                foreach (var player in session.Players)
+                {
+                    n++;
+                    string name = null;
+                    if (player.Properties != null &&
+                        player.Properties.TryGetValue(NamePropertyKey, out var prop))
+                        name = prop.Value;
+                    if (string.IsNullOrWhiteSpace(name)) name = $"플레이어 {n}";
+
+                    if (player.Id == hostId) hostName = name;
+                    else others.Add(name);
+                }
+                if (hostName != null) others.Insert(0, hostName);
+                return others;
+            }
+        }
+
         /// 세션 확립 직후 발생. 인자 = 보이스 채널명으로 쓸 세션 Id.
         public event Action<string> SessionStarted;
         public event Action SessionEnded;
+
+        /// 로비 인원/이름 변동 통지 — PlayerJoined/PlayerHasLeft/PlayerPropertiesChanged/Changed를 묶는다.
+        public event Action LobbyChanged;
 
         bool _ending;
 
@@ -49,22 +87,34 @@ namespace Game.Net
         public async Task<string> CreateRoomAsync(string nickname)
         {
             LocalNickname = string.IsNullOrWhiteSpace(nickname) ? "무명" : nickname.Trim();
-            var options = new SessionOptions { MaxPlayers = MaxPlayers }.WithRelayNetwork();
+            var options = new SessionOptions
+            {
+                MaxPlayers = MaxPlayers,
+                PlayerProperties = new Dictionary<string, PlayerProperty>
+                {
+                    [NamePropertyKey] = new PlayerProperty(LocalNickname, VisibilityPropertyOptions.Public)
+                }
+            }.WithRelayNetwork();
             var session = await MultiplayerService.Instance.CreateSessionAsync(options);
             Hook(session);
-
-            var status = NetworkManager.Singleton.SceneManager.LoadScene(GameScene, LoadSceneMode.Single);
-            if (status != SceneEventProgressStatus.Started)
-                Debug.LogError($"[Session] 게임 씬 로드 실패: {status}");
+            // 씬 전환 없음 — 방 생성 직후엔 로비에서 대기한다(Homescreen 유지).
+            // 호스트가 [게임 시작]을 눌러야 NetworkManager.SceneManager.LoadScene이 호출된다.
             return session.Code;
         }
 
         public async Task JoinRoomAsync(string normalizedCode, string nickname)
         {
             LocalNickname = string.IsNullOrWhiteSpace(nickname) ? "무명" : nickname.Trim();
-            var session = await MultiplayerService.Instance.JoinSessionByCodeAsync(normalizedCode);
+            var options = new JoinSessionOptions
+            {
+                PlayerProperties = new Dictionary<string, PlayerProperty>
+                {
+                    [NamePropertyKey] = new PlayerProperty(LocalNickname, VisibilityPropertyOptions.Public)
+                }
+            };
+            var session = await MultiplayerService.Instance.JoinSessionByCodeAsync(normalizedCode, options);
             Hook(session);
-            // 씬 이동은 NGO 씬 동기화가 자동 처리
+            // 씬 이동은 NGO 씬 동기화가 자동 처리 (호스트가 게임 시작을 누른 뒤)
         }
 
         public async Task LeaveRoomAsync()
@@ -79,9 +129,16 @@ namespace Game.Net
             _ending = false;
             session.Deleted += OnRemoteEnded;            // 호스트가 방을 닫음
             session.RemovedFromSession += OnRemoteEnded; // 추방/강제 종료
+            session.PlayerJoined += OnLobbyPlayerChanged;
+            session.PlayerHasLeft += OnLobbyPlayerChanged;
+            session.PlayerPropertiesChanged += OnLobbyChanged;
+            session.Changed += OnLobbyChanged;
             NetworkManager.Singleton.OnClientStopped += OnClientStopped;
             SessionStarted?.Invoke(session.Id);
         }
+
+        void OnLobbyPlayerChanged(string playerId) => LobbyChanged?.Invoke();
+        void OnLobbyChanged() => LobbyChanged?.Invoke();
 
         void OnRemoteEnded()
         {
@@ -110,6 +167,10 @@ namespace Game.Net
             {
                 session.Deleted -= OnRemoteEnded;
                 session.RemovedFromSession -= OnRemoteEnded;
+                session.PlayerJoined -= OnLobbyPlayerChanged;
+                session.PlayerHasLeft -= OnLobbyPlayerChanged;
+                session.PlayerPropertiesChanged -= OnLobbyChanged;
+                session.Changed -= OnLobbyChanged;
                 try { await session.LeaveAsync(); }
                 catch (Exception e) { Debug.LogWarning($"[Session] LeaveAsync: {e.Message}"); }
             }
