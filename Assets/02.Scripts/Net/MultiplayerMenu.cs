@@ -346,6 +346,7 @@ namespace Game.UI
             _status.text = "게임 시작 중...";
             try
             {
+                await LobbyCorridorPreview.ReleaseForGameStartAsync();
                 await SessionManager.Instance.StartGameNetworkAsync();
             }
             catch (Exception e)
