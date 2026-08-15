@@ -3,6 +3,7 @@ using System.Reflection;
 using System.Threading.Tasks;
 using Game.Core;
 using Game.Net;
+using Game.UI;
 using Game.Voice;
 using Unity.Netcode;
 using UnityEditor;
@@ -11,9 +12,9 @@ using UnityEngine;
 using UnityEngine.SceneManagement;
 
 /// 멀티플레이 전체 루프 스모크 테스트: Homescreen에서 Play 진입 → 부트스트랩 대기 →
-/// 방 생성 → GameScene 로드 → 스폰/접지 → 보이스 → 상호작용 동기화(토글/픽업) →
-/// 몬스터 어댑터 → 강제 사망/관전 → 게임오버 → Homescreen 복귀 → NetworkManager 정리까지
-/// 각 단계를 OK:/FAIL: 로그로 검증한다.
+/// 방 생성 → 로비 대기 단언(씬 유지/인원/이름/호스트/보이스) → 시작 경로 호출 → GameScene 로드 →
+/// 스폰/접지 → 보이스 → 상호작용 동기화(토글/픽업) → 몬스터 어댑터 → 강제 사망/관전 → 게임오버 →
+/// Homescreen 복귀 → NetworkManager 정리까지 각 단계를 OK:/FAIL: 로그로 검증한다.
 /// 참고 패턴(구조만): jungwon RESTORE Assets/Editor/SmokeTest.cs — async 단계 러너, 타임아웃, OK/FAIL 로그.
 ///
 /// 게임오버 트리거 설계 메모: NetPlayer.ServerKill()만으로는 "전원 사망" 판정이 일어나지 않는다
@@ -23,7 +24,7 @@ using UnityEngine.SceneManagement;
 /// 2) 그 다음 MonsterNetAdapter.ServerAttack(local)을 호출해(이미 죽은 상태라 ServerKill 자체는
 ///    no-op) anyAlive 체크→GameOverRpc 경로를 실제 프로덕션 진입점 그대로 검증한다.
 /// 이렇게 순서를 나누지 않고 곧장 ServerAttack만 호출하면 게임오버의 호스트 지연(2초) 쪽 씬 전환이
-/// 관전 카메라 5초 지연보다 먼저 끝나버려 6번 단계 검증 타이밍과 충돌한다.
+/// 관전 카메라 5초 지연보다 먼저 끝나버려 10번 단계 검증 타이밍과 충돌한다.
 public static class NetSmokeTest
 {
     const string RunningFlag = "NetSmokeTest.Running";
@@ -31,6 +32,7 @@ public static class NetSmokeTest
     const string GameSceneName = "GameScene";
     const string HomeSceneName = "Homescreen";
     const string GameOverReason = "전원 사망 — 게임 오버";
+    const string SmokeNickname = "스모크";
 
     [MenuItem("Game/Net/스모크 테스트")]
     public static void Run()
@@ -77,7 +79,7 @@ public static class NetSmokeTest
             {
                 try
                 {
-                    var createTask = SessionManager.Instance.CreateRoomAsync("스모크");
+                    var createTask = SessionManager.Instance.CreateRoomAsync(SmokeNickname);
                     var done = await Task.WhenAny(createTask, Task.Delay(60000));
                     if (done != createTask)
                     {
@@ -112,12 +114,46 @@ public static class NetSmokeTest
             { Fail($"방 코드 형식 이상 — '{joinCode}'"); return; }
             Ok($"방 생성 완료, 코드={joinCode}");
 
-            // 3. GameScene 로드 대기 (CreateRoomAsync 내부에서 이미 LoadScene 호출됨 — 여기서는 완료만 기다린다)
+            // 3. 로비 대기 단언 — 방 생성이 더 이상 씬을 자동 전환하지 않는다(로비 설계 핵심).
+            if (SceneManager.GetActiveScene().name == HomeSceneName)
+                Ok("방 생성 직후 Homescreen 유지 확인(자동 씬 전환 없음)");
+            else
+                Fail($"방 생성 직후 씬이 자동 전환됨 — 로비 대기 위반 (현재 씬: {SceneManager.GetActiveScene().name})");
+
+            if (SessionManager.Instance.PlayerCount == 1)
+                Ok("로비 PlayerCount == 1 확인");
+            else
+                Fail($"로비 PlayerCount 불일치 — 실제: {SessionManager.Instance.PlayerCount}");
+
+            var lobbyNames = SessionManager.Instance.PlayerNames;
+            if (lobbyNames.Count > 0 && lobbyNames[0] == SmokeNickname)
+                Ok($"PlayerNames[0]이 입력 닉네임과 일치 확인 ({lobbyNames[0]})");
+            else
+                Fail($"PlayerNames가 입력 닉네임과 불일치 — 실제: [{string.Join(", ", lobbyNames)}]");
+
+            if (SessionManager.Instance.IsHost)
+                Ok("로비 IsHost == true 확인");
+            else
+                Fail("로비 IsHost가 false — 호스트 판정 실패");
+
+            // 로비 보이스 — 실패해도 FAIL 아닌 WARN (에디터 마이크 권한 변수)
+            if (await WaitFor(() => VoiceManager.Instance != null && VoiceManager.Instance.VoiceReady, 10f))
+                Ok("로비 VoiceManager.VoiceReady 확인");
+            else
+                Warn("10초 내 로비 보이스 미준비 — " +
+                     (VoiceManager.Instance != null ? VoiceManager.Instance.StatusMessage : "VoiceManager 없음") +
+                     " (에디터 마이크 권한 변수)");
+
+            // 4. 시작 경로 호출(MultiplayerMenu의 실제 [게임 시작] 버튼 핸들러) → GameScene 전환 확인
+            var menu = UnityEngine.Object.FindAnyObjectByType<MultiplayerMenu>(FindObjectsInactive.Include);
+            if (menu == null) { Fail("MultiplayerMenu를 찾지 못해 시작 경로 호출 불가"); return; }
+            menu.OnStartClicked();
+
             if (!await WaitFor(() => SceneManager.GetActiveScene().name == GameSceneName, 30f))
             { Fail($"30초 내 GameScene 로드 안 됨 — 현재 씬: {SceneManager.GetActiveScene().name}"); return; }
-            Ok("GameScene 로드 확인");
+            Ok("게임 시작 → GameScene 로드 확인");
 
-            // 4. NetPlayer 스폰 + 접지 확인
+            // 5. NetPlayer 스폰 + 접지 확인
             if (!await WaitFor(() => NetPlayer.Local != null, 15f))
             { Fail("15초 내 NetPlayer.Local 스폰 안 됨"); return; }
             Ok($"NetPlayer 스폰 확인 (전체 {NetPlayer.All.Count}명)");
@@ -132,14 +168,14 @@ public static class NetSmokeTest
                 else Fail($"스폰 후 접지 실패 (y={lastY:F2}, 기준={sceneY.Value:F2})");
             }
 
-            // 4-b. 화면을 덮는 불투명 UI가 남아 있지 않은지 — 인트로 페이드가 안 풀리면
+            // 5-b. 화면을 덮는 불투명 UI가 남아 있지 않은지 — 인트로 페이드가 안 풀리면
             // 게임 화면 대신 단색만 보인다(흰 화면 회귀). 페이드 시간을 감안해 잠시 기다린다.
             await Task.Delay(4000);
             var blocker = FindFullscreenOpaqueGraphic();
             if (blocker == null) Ok("화면 덮는 불투명 오버레이 없음");
             else Fail($"화면이 불투명 UI로 덮여 있음: {blocker}");
 
-            // 5. 보이스 — 실패해도 FAIL 아닌 WARN (에디터 마이크 권한 변수)
+            // 6. 보이스(게임 씬 진입 후) — 실패해도 FAIL 아닌 WARN (에디터 마이크 권한 변수)
             bool voiceReady = await WaitFor(() => VoiceManager.Instance != null && VoiceManager.Instance.VoiceReady, 10f);
             if (voiceReady)
             {
@@ -156,7 +192,7 @@ public static class NetSmokeTest
                      " (에디터 마이크 권한 변수)");
             }
 
-            // 6. NetToggleSync
+            // 7. NetToggleSync
             var toggle = UnityEngine.Object.FindAnyObjectByType<NetToggleSync>(FindObjectsInactive.Include);
             if (toggle == null) Fail("씬에 NetToggleSync 없음");
             else
@@ -167,7 +203,7 @@ public static class NetSmokeTest
                 else Fail($"NetToggleSync State 반영 안 됨 ({toggle.name})");
             }
 
-            // 7. NetPickupSync
+            // 8. NetPickupSync
             var pickup = UnityEngine.Object.FindAnyObjectByType<NetPickupSync>(FindObjectsInactive.Include);
             if (pickup == null) Fail("씬에 NetPickupSync 없음");
             else
@@ -178,10 +214,10 @@ public static class NetSmokeTest
                 else Fail($"NetPickupSync Taken 반영 안 됨 ({pickup.name})");
             }
 
-            // 8. 몬스터 어댑터 — 스폰 확인 + ServerWake() → ai.player 주입 확인
+            // 9. 몬스터 어댑터 — 스폰 확인 + ServerWake() → ai.player 주입 확인
             var monsterAdapter = await CheckMonsterAdapter(Ok, Fail);
 
-            // 9. 강제 사망 → 관전 카메라 (ServerKill 단독 경로 — HandleAliveChanged 안전망)
+            // 10. 강제 사망 → 관전 카메라 (ServerKill 단독 경로 — HandleAliveChanged 안전망)
             var local = NetPlayer.Local;
             if (local == null) { Fail("NetPlayer.Local 없음 — 사망/게임오버 단계 생략"); }
             else
@@ -196,7 +232,7 @@ public static class NetSmokeTest
                 if (spectator != null && spectator.enabled) Ok("6초 대기 후 SpectatorCamera 활성 확인");
                 else Fail("6초 대기 후 SpectatorCamera 미활성");
 
-                // 10. 게임오버 경로(1인=전원사망) — 실제 프로덕션 진입점(MonsterNetAdapter.ServerAttack)으로 트리거
+                // 11. 게임오버 경로(1인=전원사망) — 실제 프로덕션 진입점(MonsterNetAdapter.ServerAttack)으로 트리거
                 if (monsterAdapter != null)
                 {
                     monsterAdapter.ServerAttack(local); // local은 이미 사망 상태라 ServerKill 자체는 no-op, anyAlive 체크만 유효
@@ -217,7 +253,7 @@ public static class NetSmokeTest
                 }
             }
 
-            // 11. NetworkManager 정리 상태 (NetworkManagerGuard가 DDOL 중복 방지)
+            // 12. NetworkManager 정리 상태 (NetworkManagerGuard가 DDOL 중복 방지)
             await Task.Delay(500);
             var nmList = UnityEngine.Object.FindObjectsByType<NetworkManager>(FindObjectsInactive.Include);
             if (nmList.Length == 1 && !nmList[0].IsListening)
