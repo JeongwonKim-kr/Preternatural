@@ -58,6 +58,7 @@ namespace Game.Net
                 Local = this;
                 Nickname.Value = NicknameUtil.ToFixed(SessionManager.LocalNickname);
                 ownerCameraObject.AddComponent<Game.Voice.VoicePositionUpdater>();
+                gameObject.AddComponent<Game.UI.MicStatusHud>(); // 좌하단 마이크 상태 HUD 코드 생성
                 // 씬 활성화가 스폰보다 늦을 수 있어(대형 씬) Find를 재시도 코루틴으로 바인딩.
                 StartCoroutine(BindScenePlayer());
             }

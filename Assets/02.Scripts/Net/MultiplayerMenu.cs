@@ -30,7 +30,9 @@ namespace Game.UI
         /// 실측: "The character with Unicode value ... was not found" 경고 다수). macOS 시스템 폰트(Apple
         /// SD Gothic Neo)로 Dynamic-OS SDF 폰트를 즉석 생성해 대체한다 — 별도 폰트 에셋을 임포트/베이크할
         /// 필요가 없고, 빌드 타깃이 macOS(P12)라 안전하다. 실패 시(다른 OS 등) 기본 폰트로 조용히 폴백.
-        static TMP_FontAsset KoreanFont
+        /// MicStatusHud(게임 중 마이크 HUD)도 같은 캐시를 재사용한다 — 동적 폰트 생성이 가볍지 않아
+        /// 인스턴스마다 새로 만들지 않는다.
+        public static TMP_FontAsset KoreanFont
         {
             get
             {
@@ -58,6 +60,7 @@ namespace Game.UI
         TMP_Text _playerCountText;
         TMP_Text _playerListText;
         TMP_Text _waitingText;
+        TMP_Text _micStatusText;
 
         Button _openBtn, _createBtn, _joinBtn, _startBtn, _leaveBtn;
 
@@ -138,8 +141,39 @@ namespace Game.UI
                 }
             }
 
-            if (inSession) UpdateLobbyDisplay();
+            if (inSession) { UpdateLobbyDisplay(); UpdateMicStatusText(); }
             else ResetLobbySnapshot(); // 세션 밖에서는 다음 진입 시 즉시 다시 그리도록 캐시를 무효화
+        }
+
+        /// 로비 마이크 상태 한 줄 안내. VoiceReady가 아니면(연결 중/끊김/사용 불가) 조용히 무시하지 않고
+        /// VoiceManager.StatusMessage로 이유를 그대로 보여준다 — M키를 눌러도 반응이 없을 때 원인을
+        /// 알 수 있게 하기 위함(ToggleMute는 VoiceReady==false면 아무것도 하지 않고 무시한다).
+        void UpdateMicStatusText()
+        {
+            if (_micStatusText == null) return;
+            var voice = Game.Voice.VoiceManager.Instance;
+            if (voice == null)
+            {
+                _micStatusText.text = "보이스 매니저 없음";
+                _micStatusText.color = new Color(1f, 0.6f, 0.3f);
+                return;
+            }
+            if (!voice.VoiceReady)
+            {
+                _micStatusText.text = voice.StatusMessage;
+                _micStatusText.color = new Color(1f, 0.6f, 0.3f);
+                return;
+            }
+            if (voice.IsMuted)
+            {
+                _micStatusText.text = "마이크 음소거 중 (M: 해제)";
+                _micStatusText.color = new Color(1f, 0.4f, 0.4f);
+            }
+            else
+            {
+                _micStatusText.text = "마이크 켜짐 (M: 음소거)";
+                _micStatusText.color = new Color(0.7f, 0.85f, 0.7f);
+            }
         }
 
         // ---------- 로비 표시 ----------
@@ -426,6 +460,10 @@ namespace Game.UI
 
             _playerListText = CreateLabel(_sessionGroup.transform, "PlayerListText", "", 16, FontStyles.Normal, 100);
             _playerListText.alignment = TextAlignmentOptions.TopLeft;
+
+            // 마이크 상태 + M키 안내 한 줄 — 보이스 채널은 세션 참가 시점에 조인되므로 세션 중 그룹에 둔다.
+            _micStatusText = CreateLabel(_sessionGroup.transform, "MicStatusText", "마이크 상태 확인 중...", 15, FontStyles.Normal, 22);
+            _micStatusText.alignment = TextAlignmentOptions.Left;
 
             _startBtn = CreateButton(_sessionGroup.transform, "StartButton", "게임 시작", new Color(0.75f, 0.55f, 0.15f, 0.95f));
             AddHeight(_startBtn.gameObject, 44);
