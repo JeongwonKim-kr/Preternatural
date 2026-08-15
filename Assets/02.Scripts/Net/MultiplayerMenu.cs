@@ -66,7 +66,7 @@ namespace Game.UI
         TMP_Text _waitingText;
         TMP_Text _micStatusText;
 
-        Button _showCreateBtn, _showJoinBtn, _createBtn, _joinBtn, _createBackBtn, _joinBackBtn;
+        Button _showCreateBtn, _showJoinBtn, _quitBtn, _createBtn, _joinBtn, _createBackBtn, _joinBackBtn;
         Button _copyCodeBtn, _startBtn, _leaveBtn;
 
         bool _busy;
@@ -117,6 +117,7 @@ namespace Game.UI
             _createRoomGroup.SetActive(view == HomeMenuView.CreateRoom);
             _joinRoomGroup.SetActive(view == HomeMenuView.JoinRoom);
             _sessionGroup.SetActive(view == HomeMenuView.Lobby);
+            _quitBtn.gameObject.SetActive(HomeMenuState.ShowsQuitAction(view));
             _copyCodeBtn.gameObject.SetActive(inSession && !string.IsNullOrEmpty(SessionManager.Instance?.JoinCode));
             _startBtn.gameObject.SetActive(isHost);
             _waitingText.gameObject.SetActive(!isHost);
@@ -125,6 +126,7 @@ namespace Game.UI
             {
                 _showCreateBtn.interactable = ready;
                 _showJoinBtn.interactable = ready;
+                _quitBtn.interactable = true;
                 _createBtn.interactable = ready;
                 _joinBtn.interactable = ready;
                 _createBackBtn.interactable = ready;
@@ -267,6 +269,15 @@ namespace Game.UI
         void ShowCreateRoom() => _requestedView = HomeMenuView.CreateRoom;
         void ShowJoinRoom() => _requestedView = HomeMenuView.JoinRoom;
         void ShowMainActions() => _requestedView = HomeMenuView.Main;
+
+        void QuitGame()
+        {
+#if UNITY_EDITOR
+            UnityEditor.EditorApplication.isPlaying = false;
+#else
+            Application.Quit();
+#endif
+        }
 
         public void CopyJoinCodeForTests()
         {
@@ -479,6 +490,9 @@ namespace Game.UI
             _showJoinBtn = CreateButton(_mainActionsGroup.transform, "ShowJoinButton", "방 참여", new Color(0.2f, 0.45f, 0.75f, 0.95f));
             AddHeight(_showJoinBtn.gameObject, 52);
             _showJoinBtn.onClick.AddListener(ShowJoinRoom);
+            _quitBtn = CreateButton(_mainActionsGroup.transform, "QuitButton", "게임 종료", new Color(0.62f, 0.18f, 0.2f, 0.95f));
+            AddHeight(_quitBtn.gameObject, 46);
+            _quitBtn.onClick.AddListener(QuitGame);
 
             // --- 방 만들기 카드 ---
             _createRoomGroup = CreateGroup(_panel.transform, "CreateRoomCard");

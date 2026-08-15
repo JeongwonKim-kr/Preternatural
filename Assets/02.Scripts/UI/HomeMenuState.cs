@@ -16,5 +16,7 @@ namespace Game.UI
             if (inSession) return HomeMenuView.Lobby;
             return requested == HomeMenuView.Lobby ? HomeMenuView.Main : requested;
         }
+
+        public static bool ShowsQuitAction(HomeMenuView view) => view == HomeMenuView.Main;
     }
 }
