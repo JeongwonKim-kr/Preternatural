@@ -63,7 +63,7 @@ namespace Game.UI
         TMP_Text _waitingText;
         TMP_Text _micStatusText;
 
-        Button _openBtn, _createBtn, _joinBtn, _startBtn, _leaveBtn;
+        Button _openBtn, _createBtn, _joinBtn, _copyCodeBtn, _startBtn, _leaveBtn;
 
         bool _busy;
         bool _panelOpen;
@@ -110,6 +110,7 @@ namespace Game.UI
 
             _joinCreateGroup.SetActive(!inSession);
             _sessionGroup.SetActive(inSession);
+            _copyCodeBtn.gameObject.SetActive(inSession && !string.IsNullOrEmpty(SessionManager.Instance?.JoinCode));
             _startBtn.gameObject.SetActive(isHost);
             _waitingText.gameObject.SetActive(!isHost);
 
@@ -250,6 +251,14 @@ namespace Game.UI
         // ---------- 버튼 핸들러 ----------
 
         void OnOpenToggleClicked() => SetPanelOpen(!_panelOpen);
+
+        public void CopyJoinCodeForTests()
+        {
+            var code = SessionManager.Instance?.JoinCode;
+            if (string.IsNullOrEmpty(code)) return;
+            GUIUtility.systemCopyBuffer = code;
+            SetIdle("방 번호를 복사했습니다.");
+        }
 
         void SetPanelOpen(bool open)
         {
@@ -478,6 +487,10 @@ namespace Game.UI
             _roomCodeText = CreateLabel(_sessionGroup.transform, "RoomCodeText", "방 코드: ------", 44, FontStyles.Bold, 60);
             _roomCodeText.color = new Color(0.6f, 0.95f, 0.8f);
             if (_roomCodeText is TextMeshProUGUI roomCodeTmp) roomCodeTmp.characterSpacing = 3f;
+
+            _copyCodeBtn = CreateButton(_sessionGroup.transform, "CopyCodeButton", "방 번호 복사", new Color(0.2f, 0.45f, 0.75f, 0.95f));
+            AddHeight(_copyCodeBtn.gameObject, 44);
+            _copyCodeBtn.onClick.AddListener(CopyJoinCodeForTests);
 
             // 인원/참가자 목록은 방 코드 바로 아래, 더 작은 크기로 명확히 구분해 표시한다.
             _playerCountText = CreateLabel(_sessionGroup.transform, "PlayerCountText", $"인원 0/{SessionManager.MaxPlayers}", 20, FontStyles.Normal, 28);

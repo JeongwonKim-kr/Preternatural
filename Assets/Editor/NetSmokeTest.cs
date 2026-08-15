@@ -114,6 +114,14 @@ public static class NetSmokeTest
             { Fail($"방 코드 형식 이상 — '{joinCode}'"); return; }
             Ok($"방 생성 완료, 코드={joinCode}");
 
+            var menu = UnityEngine.Object.FindAnyObjectByType<MultiplayerMenu>(FindObjectsInactive.Include);
+            if (menu == null) { Fail("MultiplayerMenu를 찾지 못해 복사 경로 호출 불가"); return; }
+            menu.CopyJoinCodeForTests();
+            if (GUIUtility.systemCopyBuffer == SessionManager.Instance.JoinCode)
+                Ok("방 코드 복사 확인");
+            else
+                Fail("방 코드가 시스템 클립보드에 복사되지 않음");
+
             // 3. 로비 대기 단언 — 방 생성이 더 이상 씬을 자동 전환하지 않는다(로비 설계 핵심).
             if (SceneManager.GetActiveScene().name == HomeSceneName)
                 Ok("방 생성 직후 Homescreen 유지 확인(자동 씬 전환 없음)");
@@ -154,8 +162,6 @@ public static class NetSmokeTest
                      " (에디터 마이크 권한 변수)");
 
             // 4. 시작 경로 호출(MultiplayerMenu의 실제 [게임 시작] 버튼 핸들러) → GameScene 전환 확인
-            var menu = UnityEngine.Object.FindAnyObjectByType<MultiplayerMenu>(FindObjectsInactive.Include);
-            if (menu == null) { Fail("MultiplayerMenu를 찾지 못해 시작 경로 호출 불가"); return; }
             menu.OnStartClicked();
 
             if (!await WaitFor(() => SceneManager.GetActiveScene().name == GameSceneName, 30f))
