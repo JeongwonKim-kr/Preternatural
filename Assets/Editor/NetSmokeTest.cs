@@ -164,6 +164,12 @@ public static class NetSmokeTest
             // 4. 시작 경로 호출(MultiplayerMenu의 실제 [게임 시작] 버튼 핸들러) → GameScene 전환 확인
             menu.OnStartClicked();
 
+            if (!GameStartTransition.IsActiveForTests)
+            {
+                Fail("게임 시작 블리츠 오버레이가 시작 전에 표시되지 않음");
+                return;
+            }
+
             if (!await WaitFor(() => SceneManager.GetActiveScene().name == GameSceneName, 30f))
             { Fail($"30초 내 GameScene 로드 안 됨 — 현재 씬: {SceneManager.GetActiveScene().name}"); return; }
             Ok("게임 시작 → GameScene 로드 확인");

@@ -15,6 +15,8 @@ namespace Game.UI
 
         static GameStartTransition s_instance;
 
+        public static bool IsActiveForTests => s_instance != null && s_instance._running;
+
         GameObject _canvasObject;
         Image _black;
         Image _pulse;

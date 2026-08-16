@@ -346,18 +346,21 @@ namespace Game.UI
             _status.text = "게임 시작 중...";
             try
             {
+                GameStartTransition.Begin();
                 await LobbyCorridorPreview.ReleaseForGameStartAsync();
                 await SessionManager.Instance.StartGameNetworkAsync();
             }
             catch (Exception e)
             {
                 Debug.LogException(e);
+                GameStartTransition.Cancel();
                 if (this) SetIdle(SessionManager.MessageFor(e));
                 return;
             }
 
             if (NetworkManager.Singleton == null || !NetworkManager.Singleton.IsHost)
             {
+                GameStartTransition.Cancel();
                 if (this) SetIdle("게임 네트워크를 시작하지 못했습니다.");
                 return;
             }
@@ -365,6 +368,7 @@ namespace Game.UI
             var status = NetworkManager.Singleton.SceneManager.LoadScene(GameSceneName, LoadSceneMode.Single);
             if (status != SceneEventProgressStatus.Started)
             {
+                GameStartTransition.Cancel();
                 _busy = false;
                 _status.text = $"게임 시작에 실패했습니다. ({status})";
                 Debug.LogWarning($"[MultiplayerMenu] 게임 씬 로드 실패: {status}");
