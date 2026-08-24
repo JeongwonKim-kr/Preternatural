@@ -111,3 +111,12 @@ InitTestScene*.unity*
 /Assets/Resources/PerformanceTestRunSettings.json*
 /Assets/XR/Temp/
 /Assets/XR/Temp.meta
+
+# Local macOS metadata
+.DS_Store
+
+# Unity/IDE-generated local files
+*.slnx
+/Assets/_Recovery/
+/ValidationEvidence/
+/ProjectSettings/Packages/com.unity.services.core/Settings.json
