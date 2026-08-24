@@ -21,6 +21,8 @@ public static class NetSetupTool
 {
     const string PlayerPrefabPath = "Assets/Prefabs/NetPlayer.prefab";
     const string ModelPrefabPath = "Assets/Models/Player/PlayerModel.prefab";
+    const string FlashlightModelPrefabPath = "Assets/VanillaLoopStudio/FreeSampleAnimationSet/Art/Prefabs/SK_Flashlight.prefab";
+    const string InvisibleFlashlightLensMaterialPath = "Assets/Resources/Materials/InvisibleFlashlightLens.mat";
     const string AnimatorControllerPath = "Assets/Models/Player/PlayerLocomotion.controller";
     const string GameScenePath = "Assets/01.Scenes/GameScene.unity";
     const string HomeScenePath = "Assets/01.Scenes/Homescreen.unity";
@@ -70,12 +72,23 @@ public static class NetSetupTool
             camNt.SyncScaleX = camNt.SyncScaleY = camNt.SyncScaleZ = false;
         }
 
+        // 기존 FlashlightController가 참조하던 Light를 원격 표시의 기준값으로도 쓴다.
+        var flashCtrl = root.GetComponentInChildren<FlashlightController>(true);
+        Light ownerFlashlight = null;
+        if (flashCtrl)
+        {
+            var soFlash = new SerializedObject(flashCtrl);
+            ownerFlashlight = soFlash.FindProperty("flashlightLight").objectReferenceValue as Light;
+        }
+        if (!ownerFlashlight)
+            Debug.LogWarning("[NetSetup] FlashlightController.flashlightLight를 찾지 못함 — ownerFlashlight 미배선");
+
         // 3) 원격 모델: PlayerModel.prefab 인스턴스 → root 자식.
         var modelRoot = BuildRemoteModel(root);
 
-        // 4) 원격 손전등 Light: 모델 head 본 근처 SpotLight, 기본 비활성.
+        // 4) 원격 손전등: 오른손에 Asset Store 모델과 SpotLight를 붙인다. 기본 조명은 비활성.
         //    NetPlayer.OnNetworkSpawn/FlashlightOn.OnValueChanged가 원격에서 켜고 끈다.
-        var remoteFlashlight = BuildRemoteFlashlight(modelRoot);
+        var remoteFlashlight = BuildRemoteFlashlight(modelRoot, cam.transform, ownerFlashlight);
 
         // 5) NetPlayer 부착 + SerializedObject로 필드 배선
         var np = root.AddComponent<NetPlayer>();
@@ -103,17 +116,6 @@ public static class NetSetupTool
         so.FindProperty("remoteModelRoot").objectReferenceValue = modelRoot;
         so.FindProperty("remoteFlashlight").objectReferenceValue = remoteFlashlight;
 
-        // 기존 FlashlightController가 참조하던 Light를 그대로 오너 손전등으로 쓴다.
-        // Instantiate는 하위 트리 내부 참조를 복제본 쪽으로 알아서 재배선해준다.
-        var flashCtrl = root.GetComponentInChildren<FlashlightController>(true);
-        Light ownerFlashlight = null;
-        if (flashCtrl)
-        {
-            var soFlash = new SerializedObject(flashCtrl);
-            ownerFlashlight = soFlash.FindProperty("flashlightLight").objectReferenceValue as Light;
-        }
-        if (!ownerFlashlight)
-            Debug.LogWarning("[NetSetup] FlashlightController.flashlightLight를 찾지 못함 — ownerFlashlight 미배선");
         so.FindProperty("ownerFlashlight").objectReferenceValue = ownerFlashlight;
 
         so.FindProperty("movement").objectReferenceValue = root.GetComponentInChildren<PlayerMovement>(true);
@@ -197,33 +199,84 @@ public static class NetSetupTool
     }
 
     // ---------- 원격 손전등 ----------
-    static Light BuildRemoteFlashlight(GameObject modelRoot)
+    static Light BuildRemoteFlashlight(GameObject modelRoot, Transform aimSource, Light ownerLight)
     {
         if (!modelRoot) return null;
+
+        var rightHand = FindDescendant(modelRoot.transform, "hand_r");
+        var flashlightPrefab = AssetDatabase.LoadAssetAtPath<GameObject>(FlashlightModelPrefabPath);
+        Transform flashlightMount = rightHand != null ? rightHand : modelRoot.transform;
+
+        if (flashlightPrefab)
+        {
+            var flashlightModel = (GameObject)PrefabUtility.InstantiatePrefab(flashlightPrefab);
+            flashlightModel.name = "RemoteFlashlightModel";
+            flashlightModel.transform.SetParent(flashlightMount, false);
+            // hand_r의 +Y가 손가락 방향이다. 모델의 검은 손잡이가 손바닥을 통과하고
+            // 흰 램프 헤드가 손끝 앞으로 나오도록 배치한다.
+            flashlightModel.transform.localPosition = new Vector3(0f, 0.07f, 0f);
+            flashlightModel.transform.localRotation = Quaternion.identity;
+            flashlightModel.transform.localScale = Vector3.one;
+            HideFlatFlashlightLensPlate(flashlightModel);
+            flashlightMount = flashlightModel.transform;
+        }
+        else
+        {
+            Debug.LogError($"[NetSetup] 원격 손전등 모델 없음: {FlashlightModelPrefabPath}");
+        }
+
+        if (!rightHand)
+            Debug.LogWarning("[NetSetup] 모델에서 hand_r 본을 찾지 못함 — 원격 손전등을 모델 루트에 부착");
 
         var lightGo = new GameObject("RemoteFlashlight");
         var light = lightGo.AddComponent<Light>();
         light.type = LightType.Spot;
-        light.range = 18f;
-        light.spotAngle = 55f;
-        light.intensity = 2.2f;
-        light.color = new Color(1f, 0.95f, 0.8f);
+        light.range = ownerLight ? ownerLight.range : 45f;
+        light.spotAngle = ownerLight ? ownerLight.spotAngle : 60f;
+        light.intensity = ownerLight ? ownerLight.intensity : 0.8f;
+        light.color = ownerLight ? ownerLight.color : new Color(1f, 0.95f, 0.8f);
         light.enabled = false; // 기본 비활성 — FlashlightOn 동기화가 원격에서 켠다
 
-        var head = FindDescendant(modelRoot.transform, "head");
-        if (head)
-        {
-            lightGo.transform.SetParent(head, false);
-            lightGo.transform.localPosition = new Vector3(0, 0, 0.1f); // 얼굴 약간 앞
-            lightGo.transform.localRotation = Quaternion.identity;
-        }
-        else
-        {
-            Debug.LogWarning("[NetSetup] 모델에서 head 본을 찾지 못함 — RemoteFlashlight를 모델 루트 기준 대체 위치에 부착");
-            lightGo.transform.SetParent(modelRoot.transform, false);
-            lightGo.transform.localPosition = new Vector3(0, 1.6f, 0.15f);
-        }
+        var aim = lightGo.AddComponent<RemoteFlashlightAim>();
+        aim.Configure(aimSource);
+
+        lightGo.transform.SetParent(flashlightMount, false);
+        lightGo.transform.localPosition = new Vector3(0f, 0.16f, 0f);
+        // Unity Spot Light는 로컬 +Z를 향하므로 손전등 모델의 +Y 방향으로 맞춘다.
+        lightGo.transform.localRotation = Quaternion.Euler(-90f, 0f, 0f);
         return light;
+    }
+
+    static void HideFlatFlashlightLensPlate(GameObject flashlightModel)
+    {
+        var renderer = flashlightModel.GetComponentInChildren<MeshRenderer>(true);
+        var invisibleLensMaterial = AssetDatabase.LoadAssetAtPath<Material>(
+            InvisibleFlashlightLensMaterialPath);
+
+        if (!renderer)
+        {
+            Debug.LogError("[NetSetup] Remote flashlight model has no MeshRenderer.");
+            return;
+        }
+
+        var materials = renderer.sharedMaterials;
+        if (materials.Length <= 2)
+        {
+            Debug.LogError("[NetSetup] Remote flashlight model has no front-lens material slot.");
+            return;
+        }
+
+        if (!invisibleLensMaterial)
+        {
+            Debug.LogError($"[NetSetup] Invisible flashlight lens material missing: {InvisibleFlashlightLensMaterialPath}");
+            return;
+        }
+
+        // The imported FBX stores its flat, emissive front disk in slot 3. Replacing
+        // only that slot removes the white plate without touching the model housing
+        // or the real Unity Spot Light that illuminates the environment.
+        materials[2] = invisibleLensMaterial;
+        renderer.sharedMaterials = materials;
     }
 
     static Transform FindDescendant(Transform root, string name)

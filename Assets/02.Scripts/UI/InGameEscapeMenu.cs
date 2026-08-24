@@ -331,15 +331,15 @@ namespace Game.UI
             var fitter = panel.AddComponent<ContentSizeFitter>();
             fitter.verticalFit = ContentSizeFitter.FitMode.PreferredSize;
 
-            CreateLabel(panel.transform, "Title", "일시 정지", 34, FontStyles.Bold, 54f);
-            CreateButton(panel.transform, "ContinueButton", "계속하기", 54f, CloseMenu);
-            CreateLabel(panel.transform, "DisplaySettingsLabel", "화면 설정", 24, FontStyles.Bold, 42f);
-            CreateButton(panel.transform, "WindowedButton", "창 모드 (1920×1080)", 54f,
+            CreateLabel(panel.transform, "Title", "PAUSED", 34, FontStyles.Bold, 54f);
+            CreateButton(panel.transform, "ContinueButton", "RESUME", 54f, CloseMenu);
+            CreateLabel(panel.transform, "DisplaySettingsLabel", "DISPLAY", 24, FontStyles.Bold, 42f);
+            CreateButton(panel.transform, "WindowedButton", "WINDOWED  1920 x 1080", 54f,
                 () => SetDisplayMode(DisplayModePreference.Windowed));
-            CreateButton(panel.transform, "FullscreenButton", "전체 화면", 54f,
+            CreateButton(panel.transform, "FullscreenButton", "FULLSCREEN", 54f,
                 () => SetDisplayMode(DisplayModePreference.Fullscreen));
-            CreateButton(panel.transform, "HomescreenButton", "처음 화면으로", 54f, ReturnToHomescreen);
-            CreateButton(panel.transform, "QuitButton", "게임 종료", 54f, QuitGame,
+            CreateButton(panel.transform, "HomescreenButton", "MAIN MENU", 54f, ReturnToHomescreen);
+            CreateButton(panel.transform, "QuitButton", "QUIT GAME", 54f, QuitGame,
                 new Color(0.52f, 0.13f, 0.14f, 1f));
 
             _canvasObject.SetActive(false);
@@ -368,7 +368,7 @@ namespace Game.UI
             Stretch((RectTransform)textObject.transform);
             var text = textObject.AddComponent<TextMeshProUGUI>();
             text.text = label;
-            text.font = MultiplayerMenu.KoreanFont;
+            text.font = MultiplayerMenu.HorrorFont;
             text.fontSize = 22f;
             text.color = Color.white;
             text.alignment = TextAlignmentOptions.Center;
@@ -383,7 +383,7 @@ namespace Game.UI
             labelObject.transform.SetParent(parent, false);
             var text = labelObject.AddComponent<TextMeshProUGUI>();
             text.text = value;
-            text.font = MultiplayerMenu.KoreanFont;
+            text.font = MultiplayerMenu.HorrorFont;
             text.fontSize = fontSize;
             text.fontStyle = fontStyle;
             text.color = Color.white;

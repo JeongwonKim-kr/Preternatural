@@ -5,7 +5,7 @@ using UnityEngine.AI;
 
 namespace Game.Net
 {
-    /// 몬스터 호스트 권위. 클라이언트: MonsterLookAI/NavMeshAgent 비활성(NetworkTransform 수신만).
+    /// 몬스터 호스트 권위. 클라이언트: 로컬 AI는 잠든 상태로 유지하고 NetworkTransform만 수신한다.
     /// 호스트: 매 프레임 가장 가까운 생존·비은신 플레이어를 MonsterLookAI.player/playerCamera에 주입하고,
     /// 애니메이션 상태를 NetworkVariable로 원격에 동기화한다. 공격 판정(호스트 전용)은 ServerAttack이 맡는다.
     ///
@@ -16,9 +16,9 @@ namespace Game.Net
     /// HEAD 상태로 재현 — Play 진입 직후 몬스터 GO.active=False). 그래서 이제 GO는 절대 SetActive로
     /// 끄지 않고(Door Teleport 쪽도 몬스터 대상이면 건너뛴다), "아직 깨어나지 않음"은 대신 _awake로
     /// 표현한다 — MonsterLookAI.SetAwake/SetVisible이 렌더러·콜라이더를 감추고 AI 이동을 멈춘다.
-    /// MonsterLookAI.enabled/NavMeshAgent.enabled 자체는 (원격 클라이언트를 제외하곤) 건드리지 않는다 —
-    /// 이 컴포넌트들을 꺼버리면 MonsterLookAI.Start()까지 늦춰져 objectDisabledAtStart(DeathScreenController)
-    /// 초기화 타이밍이 어긋나는 회귀가 발생함을 확인했다(오프라인 회귀 테스트 중 발견).
+    /// MonsterLookAI.enabled/NavMeshAgent.enabled 자체는 건드리지 않는다. 컴포넌트를 꺼버리면
+    /// MonsterLookAI.Start()까지 막혀 objectDisabledAtStart(DeathScreenController)가 초기화되지 않고,
+    /// 원격 클라이언트에 CONNECTION LOST 화면이 남는 회귀가 발생한다.
     public class MonsterNetAdapter : NetworkBehaviour
     {
         [SerializeField] MonsterLookAI ai;
@@ -46,12 +46,8 @@ namespace Game.Net
             if (ai == null) ai = GetComponent<MonsterLookAI>();
             if (agent == null) agent = GetComponent<NavMeshAgent>();
 
-            if (!IsServer)
-            {
-                // 클라이언트는 몬스터를 직접 움직이지 않는다 — 위치는 NetworkTransform(서버 권위)이 수신한다.
-                if (ai != null) ai.enabled = false;
-                if (agent != null) agent.enabled = false;
-            }
+            // 원격 클라이언트에서도 MonsterLookAI.Start()는 실행돼야 시작 오버레이를 숨길 수 있다.
+            // 로컬 AI 동작은 Awake()의 SetAwake(false)로 멈추며, 위치는 NetworkTransform이 수신한다.
 
             // 호스트/클라 공통: 현재 네트워크 권위 값으로 표시 상태를 맞춘다(호스트는 AI도 함께).
             ApplyAwakeState(_awake.Value);

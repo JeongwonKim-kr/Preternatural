@@ -442,8 +442,7 @@ public class MonsterLookAI : MonoBehaviour
             out hit,
             lookDistance))
         {
-            if (hit.transform.name ==
-                "MonsterPart1")
+            if (hit.transform.GetComponentInParent<MonsterLookAI>() == this)
             {
                 playerLooking = true;
                 return;

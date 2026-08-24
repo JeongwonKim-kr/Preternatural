@@ -1,33 +1,41 @@
 using Game.UI;
 using NUnit.Framework;
+using UnityEngine;
 
 public class HomeTitleSequenceTests
 {
     [Test]
-    public void TitlePresentationAt_StartsVisible()
-        => Assert.That(HomeTitleSequence.TitlePresentationAt(0f).Alpha, Is.EqualTo(1f));
-
-    [Test]
-    public void TitlePresentationAt_UsesFlicker()
-        => Assert.That(HomeTitleSequence.TitlePresentationAt(0.28f).Alpha,
-            Is.LessThan(HomeTitleSequence.TitlePresentationAt(0.16f).Alpha));
-
-    [Test]
-    public void TitlePresentationAt_RepeatsAfterOneCycle()
+    public void TitlePresentationAt_RemainsStaticOverTime()
     {
-        var first = HomeTitleSequence.TitlePresentationAt(0.18f);
-        var repeated = HomeTitleSequence.TitlePresentationAt(HomeTitleSequence.TitleCycleSeconds + 0.18f);
+        var first = HomeTitleSequence.TitlePresentationAt(0f);
+        var later = HomeTitleSequence.TitlePresentationAt(1.42f);
 
-        Assert.That(repeated.Alpha, Is.EqualTo(first.Alpha));
-        Assert.That(repeated.HorizontalOffset, Is.EqualTo(first.HorizontalOffset));
+        Assert.That(first.Alpha, Is.EqualTo(1f));
+        Assert.That(first.Intensity, Is.EqualTo(1f));
+        Assert.That(first.HorizontalOffset, Is.Zero);
+        Assert.That(later.Alpha, Is.EqualTo(first.Alpha));
+        Assert.That(later.Intensity, Is.EqualTo(first.Intensity));
+        Assert.That(later.HorizontalOffset, Is.EqualTo(first.HorizontalOffset));
+    }
+
+    [TestCase(0f)]
+    [TestCase(0.28f)]
+    [TestCase(1.42f)]
+    public void TitleColorAt_UsesLowSaturationBoneWhite(float seconds)
+    {
+        var color = HomeTitleSequence.TitleColorAt(seconds);
+        float channelSpread = Mathf.Max(color.r, Mathf.Max(color.g, color.b)) -
+                              Mathf.Min(color.r, Mathf.Min(color.g, color.b));
+
+        Assert.That(channelSpread, Is.LessThan(0.1f));
+        Assert.That(color.r, Is.GreaterThanOrEqualTo(color.g));
+        Assert.That(color.g, Is.GreaterThanOrEqualTo(color.b));
+        Assert.That(color.a, Is.EqualTo(1f));
     }
 
     [Test]
-    public void TitlePresentationAt_KeepsVisibleValuesInRange()
-    {
-        var presentation = HomeTitleSequence.TitlePresentationAt(0.42f);
-
-        Assert.That(presentation.Alpha, Is.InRange(0.1f, 1f));
-        Assert.That(presentation.Intensity, Is.InRange(0.5f, 1f));
-    }
+    public void TitleColorAt_RemainsStaticOverTime()
+        => Assert.That(
+            HomeTitleSequence.TitleColorAt(1.42f),
+            Is.EqualTo(HomeTitleSequence.TitleColorAt(0f)));
 }

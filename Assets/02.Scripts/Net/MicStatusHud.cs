@@ -35,7 +35,7 @@ namespace Game.UI
             var voice = VoiceManager.Instance;
             if (voice == null)
             {
-                Set("보이스 매니저 없음", WarnColor);
+                Set("VOICE UNAVAILABLE", WarnColor);
                 return;
             }
 
@@ -50,12 +50,12 @@ namespace Game.UI
             bool alive = _player == null || _player.IsAlive.Value;
             if (!alive)
             {
-                Set("음소거 (사망)", MutedColor);
+                Set("MUTED  [DEAD]", MutedColor);
                 return;
             }
 
-            if (voice.IsMuted) Set("음소거 중 (M: 해제)", MutedColor);
-            else Set("마이크 켜짐 (M: 음소거)", ReadyColor);
+            if (voice.IsMuted) Set("MIC MUTED  [M: UNMUTE]", MutedColor);
+            else Set("MIC LIVE  [M: MUTE]", ReadyColor);
         }
 
         void Set(string text, Color color)
@@ -88,12 +88,12 @@ namespace Game.UI
             rt.sizeDelta = new Vector2(460, 34);
 
             _label = labelGo.AddComponent<TextMeshProUGUI>();
-            _label.font = MultiplayerMenu.KoreanFont;
+            _label.font = MultiplayerMenu.HorrorFont;
             _label.fontSize = 20;
             _label.fontStyle = FontStyles.Bold;
             _label.alignment = TextAlignmentOptions.BottomLeft;
             _label.raycastTarget = false;
-            _label.text = "마이크 상태 확인 중...";
+            _label.text = "CHECKING MICROPHONE...";
         }
     }
 }

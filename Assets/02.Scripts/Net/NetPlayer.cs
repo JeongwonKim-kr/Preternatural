@@ -33,12 +33,12 @@ namespace Game.Net
         static GameObject s_scenePlayer;
 
         public NetworkVariable<bool> FlashlightOn = new(writePerm: NetworkVariableWritePermission.Owner);
+        public NetworkVariable<float> FlashlightIntensity = new(0.8f, writePerm: NetworkVariableWritePermission.Owner);
         public NetworkVariable<bool> IsHiding = new(writePerm: NetworkVariableWritePermission.Owner);
         public NetworkVariable<bool> IsAlive = new(true);
         public NetworkVariable<FixedString64Bytes> Nickname = new(writePerm: NetworkVariableWritePermission.Owner);
 
         public Camera HeadCamera { get; private set; }
-
         [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
         static void ResetStatics()
         {
@@ -55,15 +55,19 @@ namespace Game.Net
             HeadCamera = ownerCameraObject.GetComponent<Camera>();
             bool owner = IsOwner;
 
-            foreach (var b in ownerOnly) if (b) b.enabled = owner;
-            HeadCamera.enabled = owner;
-            var listener = ownerCameraObject.GetComponent<AudioListener>();
-            if (listener) listener.enabled = owner;
-            remoteModelRoot.SetActive(!owner);
-            remoteFlashlight.enabled = !owner && FlashlightOn.Value;
+            ApplyOwnershipPresentation(owner);
+
+            FlashlightOn.OnValueChanged += HandleFlashlightOnChanged;
+            FlashlightIntensity.OnValueChanged += HandleFlashlightIntensityChanged;
+            IsAlive.OnValueChanged += HandleAliveChanged;
 
             if (owner)
             {
+                if (ownerFlashlight != null)
+                {
+                    FlashlightOn.Value = ownerFlashlight.enabled;
+                    FlashlightIntensity.Value = Mathf.Max(0f, ownerFlashlight.intensity);
+                }
                 Local = this;
                 LocalPlayerAvailable?.Invoke(this);
                 Nickname.Value = NicknameUtil.ToFixed(SessionManager.LocalNickname);
@@ -73,13 +77,52 @@ namespace Game.Net
                 StartCoroutine(BindScenePlayer());
             }
 
-            FlashlightOn.OnValueChanged += (_, on) => { if (!IsOwner) remoteFlashlight.enabled = on; };
-            IsAlive.OnValueChanged += HandleAliveChanged;
+            ApplyRemoteFlashlightState();
             if (!IsAlive.Value) HandleAliveChanged(true, false);
+        }
+
+        void ApplyOwnershipPresentation(bool owner)
+        {
+            foreach (var behaviour in ownerOnly)
+                if (behaviour) behaviour.enabled = owner;
+
+            var headCamera = HeadCamera != null
+                ? HeadCamera
+                : ownerCameraObject != null ? ownerCameraObject.GetComponent<Camera>() : null;
+            if (headCamera != null) headCamera.enabled = owner;
+
+            var listener = ownerCameraObject != null
+                ? ownerCameraObject.GetComponent<AudioListener>()
+                : null;
+            if (listener != null) listener.enabled = owner;
+            if (remoteModelRoot != null) remoteModelRoot.SetActive(!owner);
+
+            if (owner) return;
+
+            // Camera 자체의 Transform은 원격 시선/손전등 조준 기준으로 남겨야 한다. 대신 그 아래의
+            // 1인칭 손전등과 3D HUD(PLAY, 배터리, 시간 등)는 원격 캐릭터에 렌더링되지 않게 숨긴다.
+            if (ownerCameraObject != null)
+            {
+                foreach (Transform child in ownerCameraObject.transform)
+                    child.gameObject.SetActive(false);
+            }
+
+            // 프리팹에는 원격 표시용 손전등 외에도 1인칭 Spot/Point Light가 있다. 컴포넌트 입력만
+            // 끄면 이 광원들은 계속 켜져서 원격 플레이어가 손전등을 꺼도 벽을 비추게 된다.
+            Transform remoteRoot = remoteModelRoot != null ? remoteModelRoot.transform : null;
+            foreach (var light in GetComponentsInChildren<Light>(true))
+            {
+                bool belongsToRemoteModel = remoteRoot != null &&
+                    (light.transform == remoteRoot || light.transform.IsChildOf(remoteRoot));
+                if (!belongsToRemoteModel) light.enabled = false;
+            }
         }
 
         public override void OnNetworkDespawn()
         {
+            FlashlightOn.OnValueChanged -= HandleFlashlightOnChanged;
+            FlashlightIntensity.OnValueChanged -= HandleFlashlightIntensityChanged;
+            IsAlive.OnValueChanged -= HandleAliveChanged;
             if (Local == this) Local = null;
             All.Remove(this);
         }
@@ -91,6 +134,9 @@ namespace Game.Net
                 Game.Voice.VoiceManager.Instance.ToggleMute();
             bool flashOn = ownerFlashlight && ownerFlashlight.enabled;
             if (FlashlightOn.Value != flashOn) FlashlightOn.Value = flashOn;
+            float flashIntensity = ownerFlashlight ? Mathf.Max(0f, ownerFlashlight.intensity) : 0f;
+            if (Mathf.Abs(FlashlightIntensity.Value - flashIntensity) > 0.001f)
+                FlashlightIntensity.Value = flashIntensity;
             bool hiding = movement && movement.isHiding;
             if (IsHiding.Value != hiding) IsHiding.Value = hiding;
             if (IsAlive.Value && transform.position.y < KillZ)
@@ -152,10 +198,27 @@ namespace Game.Net
             IsAlive.Value = false;
         }
 
+        void HandleFlashlightOnChanged(bool _, bool __)
+        {
+            ApplyRemoteFlashlightState();
+        }
+
+        void HandleFlashlightIntensityChanged(float _, float __)
+        {
+            ApplyRemoteFlashlightState();
+        }
+
+        void ApplyRemoteFlashlightState()
+        {
+            if (remoteFlashlight == null || IsOwner) return;
+            remoteFlashlight.intensity = Mathf.Max(0f, FlashlightIntensity.Value);
+            remoteFlashlight.enabled = IsAlive.Value && FlashlightOn.Value;
+        }
+
         void HandleAliveChanged(bool _, bool alive)
         {
             if (alive) return;
-            if (!IsOwner) { remoteModelRoot.SetActive(false); remoteFlashlight.enabled = false; return; }
+            if (!IsOwner) { remoteModelRoot.SetActive(false); ApplyRemoteFlashlightState(); return; }
             foreach (var b in ownerOnly) if (b) b.enabled = false;
             var cc = GetComponent<CharacterController>();
             if (cc) cc.enabled = false;

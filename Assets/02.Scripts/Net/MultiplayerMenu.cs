@@ -24,7 +24,15 @@ namespace Game.UI
         const string GameSceneName = "GameScene";
         const int NicknameCharLimit = 20; // NicknameUtil의 61바이트 한도 내 안전 여유(한글 3바이트 x 20 = 60)
 
+        static readonly Color BoneTextColor = new(0.84f, 0.82f, 0.76f, 1f);
+        static readonly Color SecondaryTextColor = new(0.62f, 0.60f, 0.56f, 1f);
+        static readonly Color ButtonNormalColor = new(0.07f, 0.065f, 0.06f, 0.94f);
+        static readonly Color ButtonHighlightColor = new(0.30f, 0.09f, 0.10f, 0.97f);
+        static readonly Color ButtonPressedColor = new(0.17f, 0.045f, 0.05f, 1f);
+        static readonly Color ButtonBorderColor = new(0.62f, 0.59f, 0.52f, 0.68f);
+
         static TMP_FontAsset s_koreanFont;
+        static TMP_FontAsset s_horrorFont;
 
         /// TMP 기본 폰트(LiberationSans SDF)는 한글 글리프가 없어 모든 라벨이 □로 깨진다(Play 스모크에서
         /// 실측: "The character with Unicode value ... was not found" 경고 다수). macOS 시스템 폰트(Apple
@@ -47,8 +55,34 @@ namespace Game.UI
             }
         }
 
+        public static TMP_FontAsset HorrorFont
+        {
+            get
+            {
+                if (s_horrorFont != null) return s_horrorFont;
+                var sourceFont = Resources.Load<Font>("Fonts/LibreBaskerville-Regular");
+                if (sourceFont != null)
+                {
+                    s_horrorFont = TMP_FontAsset.CreateFontAsset(sourceFont);
+                    if (s_horrorFont != null)
+                        s_horrorFont.name = $"{sourceFont.name} SDF";
+                }
+
+                if (s_horrorFont == null)
+                {
+                    Debug.LogWarning("[MultiplayerMenu] Libre Baskerville was not found; using the system fallback.");
+                    return KoreanFont;
+                }
+
+                var fallback = KoreanFont;
+                if (fallback != null && s_horrorFont.fallbackFontAssetTable != null &&
+                    !s_horrorFont.fallbackFontAssetTable.Contains(fallback))
+                    s_horrorFont.fallbackFontAssetTable.Add(fallback);
+                return s_horrorFont;
+            }
+        }
+
         GameObject _canvasGo;
-        GameObject _backdrop;
         GameObject _panel;
         GameObject _mainActionsGroup;
         GameObject _createRoomGroup;
@@ -144,7 +178,7 @@ namespace Game.UI
                     // Play 스모크로 실측한 버그: ready로 바뀐 뒤에도 아무도 상태 문구를 지우지 않아
                     // "서비스 초기화 중..."이 영구히 남아 있었다(버튼은 이미 활성인데 문구만 낡음).
                     // 딱 이 전환 프레임에서 한 번만 안내 문구로 교체하고, 이후엔 다시 건드리지 않는다.
-                    _status.text = "닉네임 입력 후 방을 만들거나 코드로 입장하세요.";
+                    _status.text = "Enter a nickname, then create or join a room.";
                     _showedNotReadyMsg = false;
                 }
 
@@ -169,25 +203,25 @@ namespace Game.UI
             var voice = Game.Voice.VoiceManager.Instance;
             if (voice == null)
             {
-                _micStatusText.text = "보이스 매니저 없음";
-                _micStatusText.color = new Color(1f, 0.6f, 0.3f);
+                _micStatusText.text = "Voice unavailable";
+                _micStatusText.color = SecondaryTextColor;
                 return;
             }
             if (!voice.VoiceReady)
             {
                 _micStatusText.text = voice.StatusMessage;
-                _micStatusText.color = new Color(1f, 0.6f, 0.3f);
+                _micStatusText.color = SecondaryTextColor;
                 return;
             }
             if (voice.IsMuted)
             {
-                _micStatusText.text = "마이크 음소거 중 (M: 해제)";
-                _micStatusText.color = new Color(1f, 0.4f, 0.4f);
+                _micStatusText.text = "Mic muted  [M: unmute]";
+                _micStatusText.color = new Color(0.66f, 0.32f, 0.31f, 1f);
             }
             else
             {
-                _micStatusText.text = "마이크 켜짐 (M: 음소거)";
-                _micStatusText.color = new Color(0.7f, 0.85f, 0.7f);
+                _micStatusText.text = "Mic live  [M: mute]";
+                _micStatusText.color = BoneTextColor;
             }
         }
 
@@ -247,8 +281,8 @@ namespace Game.UI
             var sm = SessionManager.Instance;
             if (sm == null) return;
 
-            _roomCodeText.text = $"방 코드: {sm.JoinCode}";
-            _playerCountText.text = $"인원 {sm.PlayerCount}/{SessionManager.MaxPlayers}";
+            _roomCodeText.text = $"Room Code: {sm.JoinCode}";
+            _playerCountText.text = $"Players {sm.PlayerCount}/{SessionManager.MaxPlayers}";
 
             var names = sm.PlayerNames;
             var sb = new System.Text.StringBuilder();
@@ -256,7 +290,7 @@ namespace Game.UI
             {
                 if (i > 0) sb.Append('\n');
                 sb.Append(names[i]);
-                if (i == 0) sb.Append(" (호스트)"); // PlayerNames는 항상 호스트를 맨 앞에 둔다
+                if (i == 0) sb.Append("  [Host]"); // PlayerNames는 항상 호스트를 맨 앞에 둔다
             }
             _playerListText.text = sb.ToString();
         }
@@ -284,13 +318,13 @@ namespace Game.UI
             var code = SessionManager.Instance?.JoinCode;
             if (string.IsNullOrEmpty(code)) return;
             GUIUtility.systemCopyBuffer = code;
-            SetIdle("방 번호를 복사했습니다.");
+            SetIdle("Room code copied.");
         }
 
         public async void OnCreateClicked()
         {
             if (_busy) return;
-            SetBusy("방 생성 중...");
+            SetBusy("Creating room...");
             try
             {
                 await SessionManager.Instance.CreateRoomAsync(_createNicknameInput.text);
@@ -311,11 +345,11 @@ namespace Game.UI
             var code = NormalizeCode(_codeInput.text);
             if (string.IsNullOrEmpty(code))
             {
-                _status.text = "코드를 입력해 주세요.";
+                _status.text = "Enter a room code.";
                 return;
             }
 
-            SetBusy("참가 중...");
+            SetBusy("Joining room...");
             try
             {
                 await SessionManager.Instance.JoinRoomAsync(code, _joinNicknameInput.text);
@@ -337,13 +371,13 @@ namespace Game.UI
             }
             if (SessionManager.Instance == null || !SessionManager.Instance.IsHost)
             {
-                _status.text = "호스트만 게임을 시작할 수 있습니다.";
+                _status.text = "Only the host can start the game.";
                 Debug.LogWarning("[MultiplayerMenu] OnStartClicked 무시 — Session host가 아님");
                 return;
             }
 
             _busy = true;
-            _status.text = "게임 시작 중...";
+            _status.text = "Starting game...";
             try
             {
                 GameStartTransition.Begin();
@@ -361,7 +395,7 @@ namespace Game.UI
             if (NetworkManager.Singleton == null || !NetworkManager.Singleton.IsHost)
             {
                 GameStartTransition.Cancel();
-                if (this) SetIdle("게임 네트워크를 시작하지 못했습니다.");
+                if (this) SetIdle("Game network failed to start.");
                 return;
             }
 
@@ -370,7 +404,7 @@ namespace Game.UI
             {
                 GameStartTransition.Cancel();
                 _busy = false;
-                _status.text = $"게임 시작에 실패했습니다. ({status})";
+                _status.text = $"Game start failed. ({status})";
                 Debug.LogWarning($"[MultiplayerMenu] 게임 씬 로드 실패: {status}");
             }
             // 성공 시: 곧 씬이 바뀌며 다음 Update가 캔버스를 스스로 비활성화한다 — busy를 따로 풀 필요 없음.
@@ -379,11 +413,11 @@ namespace Game.UI
         public async void OnLeaveClicked()
         {
             if (_busy) return;
-            SetBusy("나가는 중...");
+            SetBusy("Leaving room...");
             try
             {
                 await SessionManager.Instance.LeaveRoomAsync();
-                if (this) SetIdle("나갔습니다.");
+                if (this) SetIdle("Left the room.");
             }
             catch (Exception e)
             {
@@ -426,10 +460,30 @@ namespace Game.UI
         /// 재로드되면(세션 종료 복귀) 이 참조도 함께 파괴되므로 다음 Update에서 다시 만든다.
         void EnsureEventSystem()
         {
-            if (_eventSystemGo != null) return;
-            if (EventSystem.current != null) return; // 다른 주체가 이미 하나 갖고 있음 — 중복 생성 금지
+            if (_eventSystemGo != null)
+            {
+                // GameScene을 로비 배경으로 additive 로드하면 그 씬의 EventSystem이 잠시 current가 된 뒤
+                // LobbyCorridorPreview에 의해 비활성화될 수 있다. 이때 메뉴용 EventSystem 오브젝트가 이미
+                // 있다는 이유로 바로 반환하면 current는 비활성 시스템을 계속 가리켜 UI가 보이기만 하고
+                // 클릭되지 않는다. Homescreen에서 Update가 호출될 때 메뉴 시스템을 다시 복구한다.
+                if (!_eventSystemGo.activeSelf) _eventSystemGo.SetActive(true);
+
+                var menuSystem = _eventSystemGo.GetComponent<EventSystem>();
+                var menuInput = _eventSystemGo.GetComponent<BaseInputModule>();
+                if (menuSystem != null) menuSystem.enabled = true;
+                if (menuInput != null) menuInput.enabled = true;
+                if (Application.isPlaying && menuSystem != null && EventSystem.current != menuSystem)
+                    EventSystem.current = menuSystem;
+                return;
+            }
+
+            if (EventSystem.current != null && EventSystem.current.isActiveAndEnabled)
+                return; // 다른 주체가 이미 정상 동작 중인 하나를 갖고 있음 — 중복 생성 금지
+
             _eventSystemGo = new GameObject("MultiplayerMenu_EventSystem",
                 typeof(EventSystem), typeof(StandaloneInputModule));
+            if (Application.isPlaying)
+                EventSystem.current = _eventSystemGo.GetComponent<EventSystem>();
         }
 
         // ---------- UI 빌드 ----------
@@ -453,27 +507,13 @@ namespace Game.UI
 
             _canvasGo.AddComponent<GraphicRaycaster>();
 
-            // 제목 아래의 메뉴 카드. 배경은 입력을 가로채지 않고, 패널만 버튼과 필드를 처리한다.
-            _backdrop = new GameObject("PanelBackdrop", typeof(RectTransform));
-            _backdrop.transform.SetParent(_canvasGo.transform, false);
-            var backdropRt = _backdrop.GetComponent<RectTransform>();
-            SetAnchor(backdropRt, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f));
-            backdropRt.sizeDelta = new Vector2(680, 560);
-            backdropRt.anchoredPosition = new Vector2(0f, -150f);
-            var backdropImg = _backdrop.AddComponent<Image>();
-            backdropImg.color = new Color(0.02f, 0.02f, 0.03f, 0.55f);
-            backdropImg.raycastTarget = false;
-
-            // 높이는 현재 메뉴 상태에 따라 내용만큼 늘어난다.
+            // 패널은 배경이나 외곽선 없이 현재 메뉴 상태의 레이아웃만 소유한다.
             _panel = new GameObject("Panel", typeof(RectTransform));
             _panel.transform.SetParent(_canvasGo.transform, false);
             var panelRt = _panel.GetComponent<RectTransform>();
             SetAnchor(panelRt, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f));
             panelRt.sizeDelta = new Vector2(600, 0);
             panelRt.anchoredPosition = new Vector2(0f, -150f);
-
-            var panelImg = _panel.AddComponent<Image>();
-            panelImg.color = new Color(0.05f, 0.06f, 0.08f, 0.94f);
 
             var panelLayout = _panel.AddComponent<VerticalLayoutGroup>();
             panelLayout.padding = new RectOffset(32, 32, 28, 28);
@@ -489,40 +529,40 @@ namespace Game.UI
 
             // --- 시작 화면: 제목 아래의 두 직접 진입 버튼 ---
             _mainActionsGroup = CreateGroup(_panel.transform, "MainActions");
-            _showCreateBtn = CreateButton(_mainActionsGroup.transform, "ShowCreateButton", "방 만들기", new Color(0.2f, 0.6f, 0.3f, 0.95f));
+            _showCreateBtn = CreateButton(_mainActionsGroup.transform, "ShowCreateButton", "Create Room");
             AddHeight(_showCreateBtn.gameObject, 52);
             _showCreateBtn.onClick.AddListener(ShowCreateRoom);
-            _showJoinBtn = CreateButton(_mainActionsGroup.transform, "ShowJoinButton", "방 참여", new Color(0.2f, 0.45f, 0.75f, 0.95f));
+            _showJoinBtn = CreateButton(_mainActionsGroup.transform, "ShowJoinButton", "Join Room");
             AddHeight(_showJoinBtn.gameObject, 52);
             _showJoinBtn.onClick.AddListener(ShowJoinRoom);
-            _quitBtn = CreateButton(_mainActionsGroup.transform, "QuitButton", "게임 종료", new Color(0.62f, 0.18f, 0.2f, 0.95f));
+            _quitBtn = CreateButton(_mainActionsGroup.transform, "QuitButton", "Quit");
             AddHeight(_quitBtn.gameObject, 46);
             _quitBtn.onClick.AddListener(QuitGame);
 
             // --- 방 만들기 카드 ---
             _createRoomGroup = CreateGroup(_panel.transform, "CreateRoomCard");
             _createRoomGroup.SetActive(false);
-            CreateLabel(_createRoomGroup.transform, "CreateTitle", "새 방 만들기", 24, FontStyles.Bold, 34);
-            _createNicknameInput = CreateInputField(_createRoomGroup.transform, "CreateNicknameInput", "닉네임", 44);
+            CreateLabel(_createRoomGroup.transform, "CreateTitle", "Create a New Room", 24, FontStyles.Bold, 34);
+            _createNicknameInput = CreateInputField(_createRoomGroup.transform, "CreateNicknameInput", "Nickname", 44);
             _createNicknameInput.characterLimit = NicknameCharLimit;
-            _createBtn = CreateButton(_createRoomGroup.transform, "CreateButton", "방 만들기", new Color(0.2f, 0.6f, 0.3f, 0.95f));
+            _createBtn = CreateButton(_createRoomGroup.transform, "CreateButton", "Create Room");
             AddHeight(_createBtn.gameObject, 44);
             _createBtn.onClick.AddListener(OnCreateClicked);
-            _createBackBtn = CreateButton(_createRoomGroup.transform, "CreateBackButton", "뒤로", new Color(0.28f, 0.28f, 0.32f, 0.95f));
+            _createBackBtn = CreateButton(_createRoomGroup.transform, "CreateBackButton", "Back");
             AddHeight(_createBackBtn.gameObject, 40);
             _createBackBtn.onClick.AddListener(ShowMainActions);
 
             // --- 방 참여 카드 ---
             _joinRoomGroup = CreateGroup(_panel.transform, "JoinRoomCard");
             _joinRoomGroup.SetActive(false);
-            CreateLabel(_joinRoomGroup.transform, "JoinTitle", "방 참여", 24, FontStyles.Bold, 34);
-            _joinNicknameInput = CreateInputField(_joinRoomGroup.transform, "JoinNicknameInput", "닉네임", 44);
+            CreateLabel(_joinRoomGroup.transform, "JoinTitle", "Join a Room", 24, FontStyles.Bold, 34);
+            _joinNicknameInput = CreateInputField(_joinRoomGroup.transform, "JoinNicknameInput", "Nickname", 44);
             _joinNicknameInput.characterLimit = NicknameCharLimit;
-            _codeInput = CreateInputField(_joinRoomGroup.transform, "CodeInput", "방 코드", 44);
-            _joinBtn = CreateButton(_joinRoomGroup.transform, "JoinButton", "방 참여", new Color(0.2f, 0.45f, 0.75f, 0.95f));
+            _codeInput = CreateInputField(_joinRoomGroup.transform, "CodeInput", "Room Code", 44);
+            _joinBtn = CreateButton(_joinRoomGroup.transform, "JoinButton", "Join Room");
             AddHeight(_joinBtn.gameObject, 44);
             _joinBtn.onClick.AddListener(OnJoinClicked);
-            _joinBackBtn = CreateButton(_joinRoomGroup.transform, "JoinBackButton", "뒤로", new Color(0.28f, 0.28f, 0.32f, 0.95f));
+            _joinBackBtn = CreateButton(_joinRoomGroup.transform, "JoinBackButton", "Back");
             AddHeight(_joinBackBtn.gameObject, 40);
             _joinBackBtn.onClick.AddListener(ShowMainActions);
 
@@ -531,42 +571,61 @@ namespace Game.UI
             _sessionGroup.SetActive(false);
 
             // 방 코드 — 다른 참가자에게 불러줘야 하는 값이라 패널에서 가장 크고 눈에 띄게 표시한다.
-            _roomCodeText = CreateLabel(_sessionGroup.transform, "RoomCodeText", "방 코드: ------", 44, FontStyles.Bold, 60);
-            _roomCodeText.color = new Color(0.6f, 0.95f, 0.8f);
-            if (_roomCodeText is TextMeshProUGUI roomCodeTmp) roomCodeTmp.characterSpacing = 3f;
+            _roomCodeText = CreateLabel(_sessionGroup.transform, "RoomCodeText", "Room Code: ------", 44, FontStyles.Bold, 60);
+            _roomCodeText.color = BoneTextColor;
+            if (_roomCodeText is TextMeshProUGUI roomCodeTmp)
+            {
+                roomCodeTmp.characterSpacing = 3f;
+                roomCodeTmp.textWrappingMode = TextWrappingModes.NoWrap;
+                roomCodeTmp.enableAutoSizing = true;
+                roomCodeTmp.fontSizeMin = 30f;
+                roomCodeTmp.fontSizeMax = 44f;
+                roomCodeTmp.overflowMode = TextOverflowModes.Overflow;
+            }
 
-            _copyCodeBtn = CreateButton(_sessionGroup.transform, "CopyCodeButton", "방 번호 복사", new Color(0.2f, 0.45f, 0.75f, 0.95f));
+            _copyCodeBtn = CreateButton(_sessionGroup.transform, "CopyCodeButton", "Copy Room Code");
             AddHeight(_copyCodeBtn.gameObject, 44);
             _copyCodeBtn.onClick.AddListener(CopyJoinCodeForTests);
 
             // 인원/참가자 목록은 방 코드 바로 아래, 더 작은 크기로 명확히 구분해 표시한다.
-            _playerCountText = CreateLabel(_sessionGroup.transform, "PlayerCountText", $"인원 0/{SessionManager.MaxPlayers}", 20, FontStyles.Normal, 28);
+            _playerCountText = CreateLabel(_sessionGroup.transform, "PlayerCountText", $"Players 0/{SessionManager.MaxPlayers}", 20, FontStyles.Normal, 28);
 
             _playerListText = CreateLabel(_sessionGroup.transform, "PlayerListText", "", 18, FontStyles.Normal, 100);
             _playerListText.alignment = TextAlignmentOptions.TopLeft;
 
             // 마이크 상태 + M키 안내 한 줄 — 보이스 채널은 세션 참가 시점에 조인되므로 세션 중 그룹에 둔다.
-            _micStatusText = CreateLabel(_sessionGroup.transform, "MicStatusText", "마이크 상태 확인 중...", 15, FontStyles.Normal, 22);
+            _micStatusText = CreateLabel(_sessionGroup.transform, "MicStatusText", "Checking microphone...", 15, FontStyles.Normal, 22);
             _micStatusText.alignment = TextAlignmentOptions.Left;
 
-            _startBtn = CreateButton(_sessionGroup.transform, "StartButton", "게임 시작", new Color(0.75f, 0.55f, 0.15f, 0.95f));
-            AddHeight(_startBtn.gameObject, 44);
-            _startBtn.onClick.AddListener(OnStartClicked);
-
             // 참가자에게는 시작 버튼 대신 이 안내를 보여준다(호스트 재량으로 언제든 시작 가능).
-            _waitingText = CreateLabel(_sessionGroup.transform, "WaitingText", "호스트가 시작하기를 기다리는 중", 16, FontStyles.Italic, 40);
-            _waitingText.color = new Color(0.8f, 0.8f, 0.8f);
+            _waitingText = CreateLabel(_sessionGroup.transform, "WaitingText", "Waiting for host", 16, FontStyles.Italic, 40);
+            _waitingText.color = SecondaryTextColor;
 
-            _leaveBtn = CreateButton(_sessionGroup.transform, "LeaveButton", "나가기", new Color(0.7f, 0.2f, 0.2f, 0.95f));
+            // 세로 공간을 줄이고 주요 동작을 한눈에 비교할 수 있도록 한 줄에 둔다.
+            // 참가자에게 StartButton이 숨겨지면 HorizontalLayoutGroup이 LeaveButton을 전체 폭으로 확장한다.
+            var sessionActions = CreateHorizontalGroup(_sessionGroup.transform, "SessionActions");
+            _leaveBtn = CreateButton(sessionActions.transform, "LeaveButton", "Leave Room");
             AddHeight(_leaveBtn.gameObject, 44);
+            AddFlexibleWidth(_leaveBtn.gameObject, 1f);
             _leaveBtn.onClick.AddListener(OnLeaveClicked);
 
+            _startBtn = CreateButton(sessionActions.transform, "StartButton", "Start Game");
+            AddHeight(_startBtn.gameObject, 44);
+            AddFlexibleWidth(_startBtn.gameObject, 1f);
+            _startBtn.onClick.AddListener(OnStartClicked);
+
             // --- 상태 라벨(항상 표시) ---
-            _status = CreateLabel(_panel.transform, "StatusText", "닉네임 입력 후 방을 만들거나 코드로 입장하세요.", 18, FontStyles.Normal, 48);
-            _status.color = new Color(1f, 0.85f, 0.4f);
+            _status = CreateLabel(_panel.transform, "StatusText", "Enter a nickname, then create or join a room.", 18, FontStyles.Normal, 48);
+            _status.color = SecondaryTextColor;
+
+            var keyboardShortcuts = _canvasGo.AddComponent<MenuKeyboardShortcuts>();
+            keyboardShortcuts.Configure(
+                _showCreateBtn, _showJoinBtn, _quitBtn,
+                _createNicknameInput, _createBtn, _createBackBtn,
+                _joinNicknameInput, _codeInput, _joinBtn, _joinBackBtn,
+                _copyCodeBtn, _leaveBtn, _startBtn);
 
             _panel.SetActive(true);
-            _backdrop.SetActive(true);
         }
 
         static GameObject CreateGroup(Transform parent, string name)
@@ -574,6 +633,19 @@ namespace Game.UI
             var go = new GameObject(name, typeof(RectTransform));
             go.transform.SetParent(parent, false);
             var layout = go.AddComponent<VerticalLayoutGroup>();
+            layout.spacing = 8;
+            layout.childControlWidth = true;
+            layout.childControlHeight = true;
+            layout.childForceExpandWidth = true;
+            layout.childForceExpandHeight = false;
+            return go;
+        }
+
+        static GameObject CreateHorizontalGroup(Transform parent, string name)
+        {
+            var go = new GameObject(name, typeof(RectTransform));
+            go.transform.SetParent(parent, false);
+            var layout = go.AddComponent<HorizontalLayoutGroup>();
             layout.spacing = 8;
             layout.childControlWidth = true;
             layout.childControlHeight = true;
@@ -590,6 +662,13 @@ namespace Game.UI
             le.minHeight = h;
         }
 
+        static void AddFlexibleWidth(GameObject go, float width)
+        {
+            var le = go.GetComponent<LayoutElement>();
+            if (!le) le = go.AddComponent<LayoutElement>();
+            le.flexibleWidth = width;
+        }
+
         static void SetAnchor(RectTransform rt, Vector2 min, Vector2 max, Vector2 pivot)
         {
             rt.anchorMin = min;
@@ -597,18 +676,28 @@ namespace Game.UI
             rt.pivot = pivot;
         }
 
-        static Button CreateButton(Transform parent, string name, string label, Color color)
+        static Button CreateButton(Transform parent, string name, string label)
         {
             var go = new GameObject(name, typeof(RectTransform));
             go.transform.SetParent(parent, false);
 
             var img = go.AddComponent<Image>();
-            img.color = color;
+            img.color = Color.white;
 
             var btn = go.AddComponent<Button>();
             var colors = btn.colors;
-            colors.disabledColor = new Color(0.35f, 0.35f, 0.35f, 0.6f);
+            colors.normalColor = ButtonNormalColor;
+            colors.highlightedColor = ButtonHighlightColor;
+            colors.selectedColor = ButtonHighlightColor;
+            colors.pressedColor = ButtonPressedColor;
+            colors.disabledColor = new Color(0.08f, 0.075f, 0.07f, 0.42f);
+            colors.fadeDuration = 0.10f;
             btn.colors = colors;
+
+            var outline = go.AddComponent<Outline>();
+            outline.effectColor = ButtonBorderColor;
+            outline.effectDistance = new Vector2(1f, -1f);
+            outline.useGraphicAlpha = true;
 
             var textGo = new GameObject("Text", typeof(RectTransform));
             textGo.transform.SetParent(go.transform, false);
@@ -620,10 +709,10 @@ namespace Game.UI
 
             var text = textGo.AddComponent<TextMeshProUGUI>();
             text.text = label;
-            text.font = KoreanFont;
+            text.font = HorrorFont;
             text.alignment = TextAlignmentOptions.Center;
-            text.fontSize = 22;
-            text.color = Color.white;
+            text.fontSize = 21;
+            text.color = BoneTextColor;
             text.raycastTarget = false;
 
             return btn;
@@ -635,7 +724,7 @@ namespace Game.UI
             go.transform.SetParent(parent, false);
 
             var bg = go.AddComponent<Image>();
-            bg.color = new Color(1f, 1f, 1f, 0.12f);
+            bg.color = new Color(0.045f, 0.042f, 0.038f, 0.94f);
 
             var input = go.AddComponent<TMP_InputField>();
             input.lineType = TMP_InputField.LineType.SingleLine;
@@ -657,9 +746,9 @@ namespace Game.UI
             textRt.offsetMin = Vector2.zero;
             textRt.offsetMax = Vector2.zero;
             var textComp = textGo.AddComponent<TextMeshProUGUI>();
-            textComp.font = KoreanFont;
+            textComp.font = HorrorFont;
             textComp.fontSize = 20;
-            textComp.color = Color.white;
+            textComp.color = BoneTextColor;
             textComp.alignment = TextAlignmentOptions.MidlineLeft;
             textComp.textWrappingMode = TextWrappingModes.NoWrap;
 
@@ -672,10 +761,10 @@ namespace Game.UI
             placeholderRt.offsetMax = Vector2.zero;
             var placeholderComp = placeholderGo.AddComponent<TextMeshProUGUI>();
             placeholderComp.text = placeholder;
-            placeholderComp.font = KoreanFont;
+            placeholderComp.font = HorrorFont;
             placeholderComp.fontSize = 20;
             placeholderComp.fontStyle = FontStyles.Italic;
-            placeholderComp.color = new Color(1f, 1f, 1f, 0.45f);
+            placeholderComp.color = new Color(0.62f, 0.60f, 0.56f, 0.60f);
             placeholderComp.alignment = TextAlignmentOptions.MidlineLeft;
             placeholderComp.textWrappingMode = TextWrappingModes.NoWrap;
 
@@ -693,10 +782,10 @@ namespace Game.UI
             go.transform.SetParent(parent, false);
             var text = go.AddComponent<TextMeshProUGUI>();
             text.text = initial;
-            text.font = KoreanFont;
+            text.font = HorrorFont;
             text.fontSize = fontSize;
             text.fontStyle = style;
-            text.color = Color.white;
+            text.color = BoneTextColor;
             text.alignment = TextAlignmentOptions.Center;
             text.textWrappingMode = TextWrappingModes.Normal;
             AddHeight(go, height);

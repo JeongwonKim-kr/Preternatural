@@ -14,7 +14,7 @@ namespace Game.Net
     public class SessionManager : MonoBehaviour
     {
         public static SessionManager Instance { get; private set; }
-        public static string LocalNickname = "무명";
+        public static string LocalNickname = "ANONYMOUS";
 
         /// 세션이 끝난 사유 — 메뉴 복귀 후 1회 표시하고 소거한다
         public static string LastEndReason;
@@ -58,7 +58,7 @@ namespace Game.Net
                     if (player.Properties != null &&
                         player.Properties.TryGetValue(NamePropertyKey, out var prop))
                         name = prop.Value;
-                    if (string.IsNullOrWhiteSpace(name)) name = $"플레이어 {n}";
+                    if (string.IsNullOrWhiteSpace(name)) name = $"PLAYER {n}";
 
                     if (player.Id == hostId) hostName = name;
                     else others.Add(name);
@@ -88,7 +88,7 @@ namespace Game.Net
 
         public async Task<string> CreateRoomAsync(string nickname)
         {
-            LocalNickname = string.IsNullOrWhiteSpace(nickname) ? "무명" : nickname.Trim();
+            LocalNickname = string.IsNullOrWhiteSpace(nickname) ? "ANONYMOUS" : nickname.Trim();
             var options = new SessionOptions
             {
                 MaxPlayers = MaxPlayers,
@@ -106,7 +106,7 @@ namespace Game.Net
 
         public async Task JoinRoomAsync(string normalizedCode, string nickname)
         {
-            LocalNickname = string.IsNullOrWhiteSpace(nickname) ? "무명" : nickname.Trim();
+            LocalNickname = string.IsNullOrWhiteSpace(nickname) ? "ANONYMOUS" : nickname.Trim();
             var options = new JoinSessionOptions
             {
                 PlayerProperties = new Dictionary<string, PlayerProperty>
@@ -114,10 +114,36 @@ namespace Game.Net
                     [NamePropertyKey] = new PlayerProperty(LocalNickname, VisibilityPropertyOptions.Public)
                 }
             };
-            var session = await MultiplayerService.Instance.JoinSessionByCodeAsync(normalizedCode, options);
+            int recoveryAttempts = 0;
+            ISession session;
+            while (true)
+            {
+                try
+                {
+                    session = await MultiplayerService.Instance.JoinSessionByCodeAsync(normalizedCode, options);
+                    break;
+                }
+                catch (SessionException e) when (ShouldRecoverGuestIdentity(
+                           InSession, recoveryAttempts, e.Message))
+                {
+                    recoveryAttempts++;
+                    Debug.LogWarning("[Session] 동일 익명 계정이 이미 Lobby 멤버입니다. " +
+                                     "게스트 프로필로 전환한 뒤 참가를 한 번 재시도합니다.");
+                    await GameBootstrap.SwitchToConflictFreeGuestProfileAsync();
+                }
+            }
             Hook(session);
             // 씬 이동은 NGO 씬 동기화가 자동 처리 (호스트가 게임 시작을 누른 뒤)
         }
+
+        public static bool ShouldRecoverGuestIdentity(
+            bool inSession,
+            int recoveryAttempts,
+            string errorMessage)
+            => !inSession &&
+               recoveryAttempts == 0 &&
+               errorMessage != null &&
+               errorMessage.IndexOf("already a member", StringComparison.OrdinalIgnoreCase) >= 0;
 
         public async Task LeaveRoomAsync()
         {
@@ -146,7 +172,7 @@ namespace Game.Net
             bool networkListening = networkManager != null && networkManager.IsListening;
             if (_startingGameNetwork || session == null ||
                 !LobbyNetworkLifecycle.CanStartGameNetwork(SceneManager.GetActiveScene().name, session.IsHost, networkListening))
-                throw new InvalidOperationException("게임 네트워크를 시작할 수 있는 로비 방장이 아닙니다.");
+                throw new InvalidOperationException("ONLY THE LOBBY HOST CAN START THE GAME NETWORK.");
 
             _startingGameNetwork = true;
             try
@@ -209,13 +235,13 @@ namespace Game.Net
 
         void OnRemoteEnded()
         {
-            if (!_ending) LastEndReason = "방이 닫혔습니다.";
+            if (!_ending) LastEndReason = "THE ROOM WAS CLOSED.";
             _ = EndSessionAsync();
         }
 
         void OnClientStopped(bool wasHost)
         {
-            if (!_ending) LastEndReason = "연결이 끊어졌습니다.";
+            if (!_ending) LastEndReason = "CONNECTION LOST.";
             _ = EndSessionAsync();
         }
 
@@ -254,7 +280,7 @@ namespace Game.Net
             if (e is SessionException se) return MapSessionError(se);
             if (e is AggregateException ae && ae.InnerException is SessionException ise)
                 return MapSessionError(ise);
-            return "연결에 실패했습니다. 인터넷 상태를 확인해 주세요.";
+            return "CONNECTION FAILED. CHECK YOUR INTERNET CONNECTION.";
         }
 
         static string MapSessionError(SessionException se)

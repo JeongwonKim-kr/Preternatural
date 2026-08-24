@@ -12,7 +12,7 @@ namespace Game.Core
     public class GameBootstrap : MonoBehaviour
     {
         public static bool IsReady { get; private set; }
-        public static string StatusMessage { get; private set; } = "서비스 초기화 중...";
+        public static string StatusMessage { get; private set; } = "CONNECTING TO SERVICES...";
 
         static GameBootstrap s_instance;
 
@@ -22,7 +22,7 @@ namespace Game.Core
             // 에디터 'Enter Play Mode without Domain Reload' 대응 — 이전 세션의 정적 상태 제거
             s_instance = null;
             IsReady = false;
-            StatusMessage = "서비스 초기화 중...";
+            StatusMessage = "CONNECTING TO SERVICES...";
         }
 
         async void Awake()
@@ -50,15 +50,43 @@ namespace Game.Core
                     await AuthenticationService.Instance.SignInAnonymouslyAsync();
 
                 IsReady = true;
-                StatusMessage = "준비 완료";
+                StatusMessage = "READY";
                 Debug.Log($"[Bootstrap] 로그인 완료 PlayerId={AuthenticationService.Instance.PlayerId} " +
                           $"Profile={AuthenticationService.Instance.Profile}");
             }
             catch (Exception e)
             {
-                StatusMessage = "서비스 연결 실패 — 인터넷/프로젝트 링크를 확인하세요.";
+                StatusMessage = "SERVICE CONNECTION FAILED. CHECK INTERNET AND PROJECT LINK.";
                 Debug.LogException(e);
             }
+        }
+
+        /// <summary>
+        /// 같은 로컬 익명 계정이 이미 Lobby 멤버로 남아 게스트 참가가 거부된 경우에만 호출한다.
+        /// 현재 프로필을 보존한 채 다른 프로세스 전용 프로필로 전환하고 새 익명 계정으로 재로그인한다.
+        /// </summary>
+        public static async Task SwitchToConflictFreeGuestProfileAsync()
+        {
+            var auth = AuthenticationService.Instance;
+            var process = System.Diagnostics.Process.GetCurrentProcess();
+            long startTicks;
+            try { startTicks = process.StartTime.Ticks; }
+            catch { startTicks = DateTime.UtcNow.Ticks; }
+
+            string previousProfile = auth.Profile;
+            string guestProfile = AuthProfile.CreateConflictProfile(previousProfile, process.Id, startTicks);
+
+            IsReady = false;
+            StatusMessage = "SWITCHING GUEST IDENTITY...";
+
+            if (auth.IsSignedIn) auth.SignOut();
+            auth.SwitchProfile(guestProfile);
+            await auth.SignInAnonymouslyAsync();
+
+            IsReady = true;
+            StatusMessage = "READY";
+            Debug.Log($"[Bootstrap] 게스트 계정 충돌 복구 PlayerId={auth.PlayerId} " +
+                      $"Profile={auth.Profile} PreviousProfile={previousProfile}");
         }
     }
 }

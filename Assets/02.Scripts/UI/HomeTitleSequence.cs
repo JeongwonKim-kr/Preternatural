@@ -12,8 +12,6 @@ namespace Game.UI
         const int MultiplayerMenuSortingOrder = 100;
         const float TitleVerticalPosition = 150f;
 
-        public const float TitleCycleSeconds = 2f;
-
         public readonly struct TitlePresentation
         {
             public TitlePresentation(float alpha, float intensity, float horizontalOffset)
@@ -33,7 +31,6 @@ namespace Game.UI
         GameObject _canvasObject;
         Image _backdrop;
         TextMeshProUGUI _title;
-        float _elapsed;
 
         [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
         static void ResetStatics() => s_instance = null;
@@ -73,18 +70,6 @@ namespace Game.UI
             if (s_instance == this) s_instance = null;
         }
 
-        void Update()
-        {
-            if (_canvasObject == null) return;
-
-            _elapsed += Time.unscaledDeltaTime;
-            var presentation = TitlePresentationAt(_elapsed);
-            _title.color = new Color(1f, 0.45f + 0.35f * presentation.Intensity,
-                0.45f + 0.35f * presentation.Intensity, presentation.Alpha);
-            _title.rectTransform.anchoredPosition = new Vector2(presentation.HorizontalOffset, TitleVerticalPosition);
-            _backdrop.color = new Color(0f, 0f, 0f, 0.72f);
-        }
-
         void OnActiveSceneChanged(Scene _, Scene current) => RebuildForScene(current);
 
         void RebuildForScene(Scene scene)
@@ -95,7 +80,6 @@ namespace Game.UI
 
         void BuildOverlay()
         {
-            _elapsed = 0f;
             _canvasObject = new GameObject("HomeTitleSequenceCanvas", typeof(RectTransform));
             var canvas = _canvasObject.AddComponent<Canvas>();
             canvas.renderMode = RenderMode.ScreenSpaceOverlay;
@@ -114,7 +98,7 @@ namespace Game.UI
             backdropRect.offsetMin = Vector2.zero;
             backdropRect.offsetMax = Vector2.zero;
             _backdrop = backdropObject.AddComponent<Image>();
-            _backdrop.color = new Color(0f, 0f, 0f, 0.72f);
+            _backdrop.color = new Color(0f, 0f, 0f, 0.58f);
             _backdrop.raycastTarget = false;
 
             var titleObject = new GameObject("Title", typeof(RectTransform));
@@ -128,12 +112,12 @@ namespace Game.UI
 
             _title = titleObject.AddComponent<TextMeshProUGUI>();
             _title.text = "Preternatural";
-            _title.font = MultiplayerMenu.KoreanFont;
-            _title.fontSize = 108f;
-            _title.fontStyle = FontStyles.Bold;
-            _title.characterSpacing = 7f;
+            _title.font = MultiplayerMenu.HorrorFont;
+            _title.fontSize = 104f;
+            _title.fontStyle = FontStyles.Normal;
+            _title.characterSpacing = 2.5f;
             _title.alignment = TextAlignmentOptions.Center;
-            _title.color = new Color(1f, 0.8f, 0.8f, 1f);
+            _title.color = TitleColorAt(0f);
             _title.raycastTarget = false;
         }
 
@@ -147,20 +131,9 @@ namespace Game.UI
         }
 
         public static TitlePresentation TitlePresentationAt(float seconds)
-        {
-            float phase = Mathf.Repeat(seconds, TitleCycleSeconds);
-            if (phase < 0.12f) return new TitlePresentation(1f, 1f, 0f);
-            if (phase < 0.25f) return new TitlePresentation(0.92f, 0.88f, -3f);
-            if (phase < 0.34f) return new TitlePresentation(0.16f, 0.58f, 8f);
-            if (phase < 0.50f) return new TitlePresentation(0.94f, 0.96f, -6f);
-            if (phase < 0.68f) return new TitlePresentation(0.38f, 0.68f, 4f);
-            if (phase < 0.84f) return new TitlePresentation(0.88f, 0.9f, -2f);
-            if (phase < 1.00f) return new TitlePresentation(0.22f, 0.55f, 7f);
-            if (phase < 1.20f) return new TitlePresentation(0.96f, 1f, 0f);
-            if (phase < 1.36f) return new TitlePresentation(0.35f, 0.66f, -5f);
-            if (phase < 1.56f) return new TitlePresentation(0.8f, 0.84f, 3f);
-            if (phase < 1.72f) return new TitlePresentation(0.4f, 0.62f, -7f);
-            return new TitlePresentation(0.94f, 0.94f, 2f);
-        }
+            => new TitlePresentation(1f, 1f, 0f);
+
+        public static Color TitleColorAt(float seconds)
+            => new Color(0.88f, 0.85f, 0.79f, 1f);
     }
 }

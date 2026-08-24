@@ -10,7 +10,12 @@ namespace Game.UI
         const string HomescreenSceneName = "Homescreen";
         const string GameSceneName = "GameScene";
         const string PlayerRootName = "Player";
-        const string CanvasRootName = "Canvas";
+        const string CanvasPath = "Canvas";
+        const string PostProcessingPath = "PostProcessing";
+        const string CrosshairPath = "Player/Camera/Crosshair/";
+        const string GlitchEffectPath = "Canvas/glitch effect";
+        const string LeftPanelPath = "Canvas/LeftPanel";
+        const string RightPanelPath = "Canvas/RightPanel";
 
         static LobbyCorridorPreview s_instance;
 
@@ -57,15 +62,58 @@ namespace Game.UI
         public static bool ShouldReleasePreview(string activeSceneName, bool previewLoaded)
             => previewLoaded && !IsHomescreen(activeSceneName);
 
+        public static bool ApplyCursorAfterPreviewRelease(string activeSceneName)
+        {
+            if (IsHomescreen(activeSceneName))
+            {
+                UnlockHomescreenCursor();
+                return true;
+            }
+
+            if (activeSceneName == GameSceneName)
+            {
+                LockGameplayCursor();
+                return true;
+            }
+
+            return false;
+        }
+
         public static bool KeepsPreviewBehaviour(string typeName)
             => typeName == "PSXShaderKit.PSXPostProcessEffect" ||
                typeName == "UnityEngine.Rendering.PostProcessing.PostProcessLayer";
+
+        public static bool KeepsPreviewBehaviour(string typeName, string hierarchyPath)
+        {
+            if (KeepsPreviewBehaviour(typeName)) return true;
+
+            if (hierarchyPath == PostProcessingPath)
+                return typeName == "UnityEngine.Rendering.PostProcessing.PostProcessVolume";
+
+            if (hierarchyPath == CanvasPath)
+                return typeName == "UnityEngine.Canvas" ||
+                       typeName == "UnityEngine.UI.CanvasScaler";
+
+            if (hierarchyPath == GlitchEffectPath)
+                return typeName == "UnityEngine.UI.RawImage" ||
+                       typeName == "UnityEngine.Video.VideoPlayer";
+
+            if (hierarchyPath == LeftPanelPath || hierarchyPath == RightPanelPath)
+                return typeName == "UnityEngine.UI.RawImage";
+
+            return hierarchyPath.StartsWith(CrosshairPath) &&
+                   !hierarchyPath.StartsWith(CrosshairPath + "IfInteractable") &&
+                   typeName == "TMPro.TextMeshPro";
+        }
 
         public static bool ShouldConfigurePreview(string activeSceneName, bool releaseRequested)
             => IsHomescreen(activeSceneName) && !releaseRequested;
 
         public static Task ReleaseForGameStartAsync()
             => s_instance == null ? Task.CompletedTask : s_instance.ReleasePreviewAsync();
+
+        public static Camera TransitionCamera
+            => s_instance != null && s_instance._previewLoaded ? s_instance._previewCamera : null;
 
         void Awake()
         {
@@ -179,7 +227,6 @@ namespace Game.UI
             _homescreenListenerWasEnabled = homescreenListener != null && homescreenListener.enabled;
 
             DisablePreviewBehaviours(previewScene);
-            DeactivateRootCanvas(previewScene);
             DisableAllCamerasAndListeners(previewScene);
 
             _previewCamera.enabled = true;
@@ -212,7 +259,7 @@ namespace Game.UI
         {
             foreach (GameObject root in previewScene.GetRootGameObjects())
             foreach (Behaviour behaviour in root.GetComponentsInChildren<Behaviour>(true))
-                if (!KeepsPreviewBehaviour(behaviour.GetType().FullName))
+                if (!KeepsPreviewBehaviour(behaviour.GetType().FullName, HierarchyPath(behaviour.transform)))
                 {
                     if (behaviour is MonoBehaviour monoBehaviour)
                         monoBehaviour.StopAllCoroutines();
@@ -220,10 +267,16 @@ namespace Game.UI
                 }
         }
 
-        static void DeactivateRootCanvas(Scene previewScene)
+        static string HierarchyPath(Transform transform)
         {
-            GameObject canvas = FindRoot(previewScene, CanvasRootName);
-            if (canvas != null) canvas.SetActive(false);
+            string path = transform.name;
+            while (transform.parent != null)
+            {
+                transform = transform.parent;
+                path = transform.name + "/" + path;
+            }
+
+            return path;
         }
 
         static void DisableAllCamerasAndListeners(Scene previewScene)
@@ -296,16 +349,21 @@ namespace Game.UI
         void RestoreHomescreenPresentation()
         {
             RestoreHomescreenCamera();
-            if (IsHomescreen(SceneManager.GetActiveScene().name))
-                UnlockHomescreenCursor();
-            else
+            string activeSceneName = SceneManager.GetActiveScene().name;
+            if (!ApplyCursorAfterPreviewRelease(activeSceneName))
                 RestoreCapturedCursorState();
         }
 
-        void UnlockHomescreenCursor()
+        static void UnlockHomescreenCursor()
         {
             Cursor.lockState = CursorLockMode.None;
             Cursor.visible = true;
+        }
+
+        static void LockGameplayCursor()
+        {
+            Cursor.lockState = CursorLockMode.Locked;
+            Cursor.visible = false;
         }
 
         void RestoreCapturedCursorState()

@@ -45,6 +45,24 @@ namespace Game.Core
             return ResolveLocalSlotProfile(persistentDataPath);
         }
 
+        /// <summary>
+        /// UGS Lobby가 현재 익명 계정을 이미 같은 방의 멤버로 보고할 때 사용할 1회성 대체 프로필.
+        /// 평상시 프로필은 그대로 유지하고, 실제 충돌이 확인된 프로세스만 별도 계정으로 전환한다.
+        /// PID와 프로세스 시작 시각의 하위 32비트를 함께 사용해 PID 재사용과 동시 실행을 구분하면서
+        /// UGS 프로필 제약(영숫자/하이픈/밑줄, 최대 30자)을 지킨다.
+        /// </summary>
+        public static string CreateConflictProfile(string currentProfile, int processId, long processStartTicks)
+        {
+            long safePid = Math.Abs((long)processId);
+            uint startToken = unchecked((uint)processStartTicks);
+            string candidate = $"guest-{safePid}-{startToken:x}";
+
+            if (string.Equals(candidate, currentProfile, StringComparison.Ordinal))
+                candidate = $"guest-{safePid}-{unchecked(startToken + 1):x}";
+
+            return Sanitize(candidate);
+        }
+
         /// persistentDataPath 아래 authslot_<pid>.claim 파일들로 같은 기기의 동시 인스턴스를 센다.
         /// 1) 자기 PID로 claim 파일을 쓴다(내용: 자기 프로세스의 실제 시작 시각 Ticks).
         /// 2) 디렉터리의 모든 claim 파일을 스캔해, 그 PID가 죽었거나(Process.GetProcessById 실패/

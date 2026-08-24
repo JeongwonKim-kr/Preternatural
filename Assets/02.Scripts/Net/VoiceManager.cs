@@ -23,7 +23,7 @@ namespace Game.Voice
 
         public bool VoiceReady { get; private set; }
         public string ActiveChannel { get; private set; }
-        public string StatusMessage { get; private set; } = "보이스 대기 중";
+        public string StatusMessage { get; private set; } = "VOICE STANDBY";
         public bool IsMuted => VoiceReady && VivoxService.Instance.IsInputDeviceMuted;
 
         const int AudibleDistance = 15;
@@ -49,7 +49,7 @@ namespace Game.Voice
             if (Instance != this) return; // 중복 인스턴스가 Destroy 전에 Start를 받는 경우 방어
             if (SessionManager.Instance == null)
             {
-                StatusMessage = "보이스 초기화 실패 (세션 매니저 없음)";
+                StatusMessage = "VOICE INIT FAILED  [NO SESSION MANAGER]";
                 Debug.LogWarning("[Voice] SessionManager.Instance가 없어 보이스를 비활성화합니다.");
                 return;
             }
@@ -66,7 +66,7 @@ namespace Game.Voice
             try
             {
                 _joinInFlight = true;
-                StatusMessage = "보이스 연결 중...";
+                StatusMessage = "CONNECTING VOICE...";
                 await VivoxService.Instance.InitializeAsync();
 
                 if (!_channelLeftSubscribed)
@@ -101,20 +101,20 @@ namespace Game.Voice
                 {
                     // 조인 진행 중 세션이 끝났거나 다른 세션으로 바뀜 — 잘못된 채널 즉시 퇴장
                     await VivoxService.Instance.LeaveChannelAsync(channelName);
-                    StatusMessage = "보이스 대기 중";
+                    StatusMessage = "VOICE STANDBY";
                     return;
                 }
 
                 ActiveChannel = channelName;
                 VoiceReady = true;
                 _loggedLobbyPositionFailure = false; // 새 채널 조인 성공 — 이전 실패 상태를 잊고 다시 시도할 수 있게 한다
-                StatusMessage = "보이스 켜짐 (M: 음소거)";
+                StatusMessage = "VOICE LIVE  [M: MUTE]";
                 SetMuted(!LocalPlayerAlive()); // 늦은 조인: 관전 상태로 시작했으면 보이스 준비 시점에 뮤트 재적용
             }
             catch (Exception e)
             {
                 VoiceReady = false;
-                StatusMessage = "보이스 사용 불가 (대시보드 Vivox 활성화/마이크 권한 확인)";
+                StatusMessage = "VOICE UNAVAILABLE  [CHECK VIVOX AND MICROPHONE ACCESS]";
                 Debug.LogWarning($"[Voice] 초기화 실패: {e.Message}");
             }
             finally
@@ -135,7 +135,7 @@ namespace Game.Voice
             var channel = ActiveChannel;
             ActiveChannel = null;
             VoiceReady = false;
-            StatusMessage = "보이스 대기 중";
+            StatusMessage = "VOICE STANDBY";
             if (channel == null) return;
             try { await VivoxService.Instance.LeaveChannelAsync(channel); }
             catch (Exception e) { Debug.LogWarning($"[Voice] 채널 퇴장 실패: {e.Message}"); }
@@ -214,7 +214,7 @@ namespace Game.Voice
         {
             VoiceReady = false;
             ActiveChannel = null;
-            StatusMessage = "보이스 연결 끊김";
+            StatusMessage = "VOICE DISCONNECTED";
             if (_loggedLobbyPositionFailure) return;
             _loggedLobbyPositionFailure = true;
             Debug.LogWarning($"[Voice] 로비 위치 갱신 실패 — 보이스 상태를 끊김으로 되돌리고 갱신 중단: {reason}");
@@ -228,7 +228,7 @@ namespace Game.Voice
             if (channelName != ActiveChannel) return; // 우리가 이미 알고 있는 채널이 아님(정리된 이전 채널 등) — 무시
             VoiceReady = false;
             ActiveChannel = null;
-            StatusMessage = "보이스 연결 끊김";
+            StatusMessage = "VOICE DISCONNECTED";
             Debug.LogWarning($"[Voice] 채널 연결 끊김 감지({channelName}) — VoiceReady 해제");
         }
     }
