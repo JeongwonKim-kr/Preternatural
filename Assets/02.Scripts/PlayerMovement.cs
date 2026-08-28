@@ -7,7 +7,6 @@ public class PlayerMovement : MonoBehaviour
     public float walkSpeed = 3f;
     public float sprintSpeed = 5f;
     public KeyCode sprintKey = KeyCode.LeftShift;
-    
 
 
     [Header("Gravity")]
@@ -29,32 +28,45 @@ public class PlayerMovement : MonoBehaviour
     [Header("Footsteps")]
     public AudioSource audioSource;
     public AudioClip[] footstepSounds;
+    
 
-    public float walkStepDelay = 0.7f;
-    public float sprintStepDelay = 0.4f;
+    public float walkStepDistance = 2.3f;
+    public float sprintStepDistance = 1.8f;
 
+
+    [Header("Metal Footsteps")]
+    public AudioClip[] metalFootstepSounds;
+
+
+    [Header("Metal Detection")]
+    public string metalTag = "Metal";
+    public float groundCheckDistance = 1.5f;
+    
 
 
     private CharacterController controller;
     private Vector3 velocity;
 
-
     private float stamina;
     private float regenTimer;
 
-    private float stepTimer;
+    // Distance traveled since last footstep
+    private float distanceSinceFootstep;
+
+    // Position used to calculate movement distance
+    private Vector3 lastFootstepPosition;
 
 
     private Vector3 originalBarScale;
 
-
     private Renderer staminaRenderer;
     private Material staminaMaterial;
 
-
     private bool staminaUsed;
-public bool isHiding = false;
 
+
+    [Header("isHiding")]
+    public bool isHiding = false;
 
 
     void Start()
@@ -64,26 +76,33 @@ public bool isHiding = false;
         Cursor.lockState = CursorLockMode.Locked;
         Cursor.visible = false;
 
-
         stamina = maxStamina;
 
 
         if (staminaBar != null)
         {
-            originalBarScale = staminaBar.localScale;
+            originalBarScale =
+                staminaBar.localScale;
 
-            staminaRenderer = staminaBar.GetComponent<Renderer>();
+            staminaRenderer =
+                staminaBar.GetComponent<Renderer>();
 
             if (staminaRenderer != null)
             {
-                staminaMaterial = staminaRenderer.material;
+                staminaMaterial =
+                    staminaRenderer.material;
             }
         }
 
 
+        // Start measuring footsteps from player's starting position
+        lastFootstepPosition = transform.position;
+
+        distanceSinceFootstep = 0f;
+
+
         SetBarAlpha(0);
     }
-
 
 
     void Update()
@@ -100,11 +119,17 @@ public bool isHiding = false;
     }
 
 
+    // =========================================================
+    // MOVEMENT
+    // =========================================================
 
     void MovePlayer()
     {
-        float horizontal = Input.GetAxisRaw("Horizontal");
-        float vertical = Input.GetAxisRaw("Vertical");
+        float horizontal =
+            Input.GetAxisRaw("Horizontal");
+
+        float vertical =
+            Input.GetAxisRaw("Vertical");
 
 
         Vector3 move =
@@ -114,7 +139,6 @@ public bool isHiding = false;
 
         if (move.sqrMagnitude > 1f)
             move.Normalize();
-
 
 
         bool wantsSprint =
@@ -127,9 +151,10 @@ public bool isHiding = false;
             stamina > 0;
 
 
-
         float currentSpeed =
-            sprinting ? sprintSpeed : walkSpeed;
+            sprinting ?
+            sprintSpeed :
+            walkSpeed;
 
 
         controller.Move(
@@ -139,22 +164,26 @@ public bool isHiding = false;
         );
 
 
-
         if (sprinting)
         {
-            stamina -= staminaDrain * Time.deltaTime;
+            stamina -=
+                staminaDrain *
+                Time.deltaTime;
 
             staminaUsed = true;
 
             regenTimer = 0;
 
 
-            if (stamina < 0)
-                stamina = 0;
+            if (stamina < 0.1f)
+                stamina = 0.1f;
         }
     }
 
 
+    // =========================================================
+    // GRAVITY
+    // =========================================================
 
     void ApplyGravity()
     {
@@ -164,7 +193,9 @@ public bool isHiding = false;
         }
         else
         {
-            velocity.y += gravity * Time.deltaTime;
+            velocity.y +=
+                gravity *
+                Time.deltaTime;
         }
 
 
@@ -175,17 +206,23 @@ public bool isHiding = false;
     }
 
 
+    // =========================================================
+    // STAMINA
+    // =========================================================
 
     void UpdateStamina()
     {
         if (stamina < maxStamina)
         {
-            regenTimer += Time.deltaTime;
+            regenTimer +=
+                Time.deltaTime;
 
 
             if (regenTimer >= regenDelay)
             {
-                stamina += staminaRegen * Time.deltaTime;
+                stamina +=
+                    staminaRegen *
+                    Time.deltaTime;
 
 
                 if (stamina > maxStamina)
@@ -194,10 +231,11 @@ public bool isHiding = false;
         }
 
 
-
         if (staminaBar != null)
         {
-            float percent = stamina / maxStamina;
+            float percent =
+                stamina /
+                maxStamina;
 
 
             staminaBar.localScale =
@@ -216,6 +254,9 @@ public bool isHiding = false;
     }
 
 
+    // =========================================================
+    // STAMINA FADE
+    // =========================================================
 
     void FadeStamina()
     {
@@ -232,19 +273,21 @@ public bool isHiding = false;
             visible ? 1f : 0f;
 
 
-        Color color = staminaMaterial.color;
+        Color color =
+            staminaMaterial.color;
 
 
         color.a = Mathf.Lerp(
             color.a,
             targetAlpha,
-            Time.deltaTime * fadeSpeed
+            Time.deltaTime *
+            fadeSpeed
         );
 
 
-        staminaMaterial.color = color;
+        staminaMaterial.color =
+            color;
     }
-
 
 
     void SetBarAlpha(float alpha)
@@ -253,12 +296,19 @@ public bool isHiding = false;
             return;
 
 
-        Color color = staminaMaterial.color;
+        Color color =
+            staminaMaterial.color;
+
         color.a = alpha;
-        staminaMaterial.color = color;
+
+        staminaMaterial.color =
+            color;
     }
 
 
+    // =========================================================
+    // FOOTSTEPS
+    // =========================================================
 
     void HandleFootsteps()
     {
@@ -267,13 +317,40 @@ public bool isHiding = false;
             Input.GetAxisRaw("Vertical") != 0;
 
 
-        if (!moving || !controller.isGrounded)
+        // Don't count movement while in the air
+        if (!moving ||
+            !controller.isGrounded)
         {
-            stepTimer = 0;
+            // Update position so falling/teleporting
+            // doesn't create a huge distance jump.
+            lastFootstepPosition =
+                transform.position;
+
             return;
         }
 
 
+        // ==========================================
+        // CALCULATE ACTUAL DISTANCE MOVED
+        // ==========================================
+
+        float movedDistance =
+            Vector3.Distance(
+                transform.position,
+                lastFootstepPosition);
+
+
+        distanceSinceFootstep +=
+            movedDistance;
+
+
+        lastFootstepPosition =
+            transform.position;
+
+
+        // ==========================================
+        // CHECK SPRINTING
+        // ==========================================
 
         bool sprinting =
             Input.GetKey(sprintKey) &&
@@ -281,46 +358,122 @@ public bool isHiding = false;
             stamina > 0;
 
 
-
-        float delay =
+        float requiredDistance =
             sprinting ?
-            sprintStepDelay :
-            walkStepDelay;
+            sprintStepDistance :
+            walkStepDistance;
 
 
+        // ==========================================
+        // PLAY FOOTSTEP AFTER DISTANCE
+        // ==========================================
 
-        stepTimer -= Time.deltaTime;
-
-
-
-        if (stepTimer <= 0)
+        if (distanceSinceFootstep >= requiredDistance)
         {
             PlayFootstep();
-            stepTimer = delay;
+
+            distanceSinceFootstep = 0f;
         }
     }
 
 
+    // =========================================================
+    // PLAY FOOTSTEP
+    // =========================================================
 
     void PlayFootstep()
     {
-        if (footstepSounds.Length == 0)
+        if (audioSource == null)
             return;
 
 
-        int index =
+        RaycastHit hit;
+
+
+        // Check what GameObject is directly underneath
+        bool hitGround =
+            Physics.Raycast(
+                transform.position,
+                Vector3.down,
+                out hit,
+                groundCheckDistance,
+                ~0,
+                QueryTriggerInteraction.Ignore
+            );
+
+
+        // =====================================================
+        // METAL
+        // =====================================================
+
+        if (hitGround)
+        {
+            GameObject groundObject =
+                hit.collider.gameObject;
+
+
+            if (groundObject.CompareTag(metalTag))
+            {
+                if (metalFootstepSounds != null &&
+                    metalFootstepSounds.Length > 0)
+                {
+                    int index =
+                        Random.Range(
+                            0,
+                            metalFootstepSounds.Length
+                        );
+
+
+                    AudioClip metalSound =
+                        metalFootstepSounds[index];
+
+
+                    if (metalSound != null)
+                    {
+audioSource.PlayOneShot(
+    metalSound,
+    1.3f
+);
+
+                        return;
+                    }
+                }
+            }
+        }
+
+
+        // =====================================================
+        // NORMAL FOOTSTEP
+        // =====================================================
+
+        if (footstepSounds == null ||
+            footstepSounds.Length == 0)
+            return;
+
+
+        int normalIndex =
             Random.Range(
                 0,
                 footstepSounds.Length
             );
 
 
-        audioSource.PlayOneShot(
-            footstepSounds[index]
-        );
+        AudioClip normalSound =
+            footstepSounds[normalIndex];
+
+
+        if (normalSound != null)
+        {
+            audioSource.PlayOneShot(
+                normalSound
+            );
+        }
     }
 
 
+    // =========================================================
+    // STAMINA PERCENT
+    // =========================================================
 
     public float StaminaPercent
     {
@@ -331,14 +484,16 @@ public bool isHiding = false;
     }
 
 
+    // =========================================================
+    // IS SPRINTING
+    // =========================================================
 
     public bool IsSprinting
     {
         get
         {
             return Input.GetKey(sprintKey)
-            && stamina > 0f;
+                && stamina > 0.1f;
         }
     }
-
 }

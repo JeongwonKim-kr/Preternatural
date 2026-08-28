@@ -1,7 +1,7 @@
 using UnityEngine;
 using UnityEngine.AI;
 
-public class MonsterLookAI : MonoBehaviour
+public class MonsterAI : MonoBehaviour
 {
     [Header("References")]
     public Transform player;

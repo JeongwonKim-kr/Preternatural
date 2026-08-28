@@ -13,30 +13,30 @@ public class DoorTeleport : MonoBehaviour, IInteractable
     [Header("Interaction")]
     public float interactDistance = 3f;
     public KeyCode interactKey = KeyCode.E;
-    [Header("Enable After Video")]
-public GameObject objectToEnable;
 
+    [Header("Enable After Video")]
+    public GameObject objectToEnable;
 
     [Header("Black Screen")]
     public RawImage blackScreen;
     public float fadeSpeed = 2f;
 
-
     [Header("Audio")]
     public AudioSource doorAudio;
     public AudioClip doorOpenSound;
 
+    [Header("Audio Sources To Fade Out")]
+    public AudioSource[] audioSourcesToFadeOut;
+    public float audioFadeSpeed = 1.5f;
 
     [Header("Background Music")]
     public AudioSource currentMusic;
     public AudioClip newMusicClip;
     public float musicFadeSpeed = 1.5f;
 
-
     [Header("Video")]
     public VideoPlayer videoPlayer;
     public RawImage videoRawImage;
-
 
     [Header("Disable During Cutscene")]
     public MonoBehaviour playerMovement;
@@ -44,10 +44,8 @@ public GameObject objectToEnable;
     public FlashlightController flashlightController;
     public GameObject flashlightObject;
 
-
     [Header("Options")]
     public bool disableAfterUse = true;
-
 
     bool isBusy;
     bool used;
@@ -62,22 +60,21 @@ public GameObject objectToEnable;
             c.a = 0f;
             blackScreen.color = c;
         }
-if (objectToEnable != null)
-{
-    objectToEnable.SetActive(false);
-}
+
+        if (objectToEnable != null)
+        {
+            objectToEnable.SetActive(false);
+        }
 
         if (currentMusic != null)
         {
             currentMusic.loop = true;
         }
 
-
         if (videoRawImage != null)
         {
             videoRawImage.gameObject.SetActive(false);
         }
-
 
         if (videoPlayer != null)
         {
@@ -86,22 +83,21 @@ if (objectToEnable != null)
     }
 
 
-
     void Update()
     {
         if (used || isBusy)
             return;
 
-
         if (!Input.GetKeyDown(interactKey))
             return;
-
 
         Ray ray = playerCamera.ViewportPointToRay(
             new Vector3(0.5f, 0.5f, 0));
 
-
-        if (Physics.Raycast(ray, out RaycastHit hit, interactDistance))
+        if (Physics.Raycast(
+            ray,
+            out RaycastHit hit,
+            interactDistance))
         {
             DoorTeleport door =
                 hit.collider.GetComponentInParent<DoorTeleport>();
@@ -114,20 +110,26 @@ if (objectToEnable != null)
     }
 
 
-
     IEnumerator TeleportRoutine()
     {
         isBusy = true;
 
 
-        if (doorAudio != null && doorOpenSound != null)
+        // ==========================================
+        // DOOR SOUND
+        // ==========================================
+
+        if (doorAudio != null &&
+            doorOpenSound != null)
         {
             doorAudio.PlayOneShot(doorOpenSound);
         }
 
 
+        // ==========================================
+        // FADE BLACK IN
+        // ==========================================
 
-        // Fade black in
         while (blackScreen.color.a < 1f)
         {
             Color c = blackScreen.color;
@@ -140,27 +142,78 @@ if (objectToEnable != null)
         }
 
 
+        // ==========================================
+        // FADE OTHER AUDIO SOURCES OUT
+        // ==========================================
 
-        // Disable player
+        bool audioStillPlaying = true;
+
+        while (audioStillPlaying)
+        {
+            audioStillPlaying = false;
+
+            if (audioSourcesToFadeOut != null)
+            {
+                foreach (AudioSource source in audioSourcesToFadeOut)
+                {
+                    if (source != null &&
+                        source.isPlaying)
+                    {
+                        source.volume = Mathf.MoveTowards(
+                            source.volume,
+                            0f,
+                            audioFadeSpeed * Time.deltaTime);
+
+                        if (source.volume > 0.001f)
+                            audioStillPlaying = true;
+                    }
+                }
+            }
+
+            yield return null;
+        }
+
+
+        // ==========================================
+        // STOP AND DISABLE FADED AUDIO
+        // ==========================================
+
+        if (audioSourcesToFadeOut != null)
+        {
+            foreach (AudioSource source in audioSourcesToFadeOut)
+            {
+                if (source != null)
+                {
+                    source.Stop();
+                    source.enabled = false;
+                }
+            }
+        }
+
+
+        // ==========================================
+        // DISABLE PLAYER
+        // ==========================================
+
         if (playerMovement != null)
             playerMovement.enabled = false;
-
 
         if (playerCameraScript != null)
             playerCameraScript.enabled = false;
 
-
         if (flashlightController != null)
             flashlightController.enabled = false;
-
 
         if (flashlightObject != null)
             flashlightObject.SetActive(false);
 
 
+        // ==========================================
+        // TELEPORT PLAYER
+        // ==========================================
 
-        // Teleport player
-        if (player != null && teleportPoint != null)
+        if (player != null &&
+            teleportPoint != null)
         {
             CharacterController cc =
                 player.GetComponent<CharacterController>();
@@ -168,49 +221,55 @@ if (objectToEnable != null)
             if (cc != null)
                 cc.enabled = false;
 
+            player.position =
+                teleportPoint.position;
 
-            player.position = teleportPoint.position;
-            player.rotation = teleportPoint.rotation;
-
+            player.rotation =
+                teleportPoint.rotation;
 
             if (cc != null)
                 cc.enabled = true;
         }
 
 
+        // ==========================================
+        // CHANGE MUSIC
+        // ==========================================
 
-
-        // Change music
-        if (currentMusic != null && newMusicClip != null)
+        if (currentMusic != null &&
+            newMusicClip != null)
         {
             while (currentMusic.volume > 0)
             {
-                currentMusic.volume = Mathf.MoveTowards(
-                    currentMusic.volume,
-                    0,
-                    musicFadeSpeed * Time.deltaTime);
+                currentMusic.volume =
+                    Mathf.MoveTowards(
+                        currentMusic.volume,
+                        0f,
+                        musicFadeSpeed *
+                        Time.deltaTime);
 
                 yield return null;
             }
 
-
             currentMusic.Stop();
 
-            currentMusic.clip = newMusicClip;
+            currentMusic.clip =
+                newMusicClip;
+
             currentMusic.loop = true;
-            currentMusic.volume = 0;
+            currentMusic.volume = 0f;
             currentMusic.Play();
         }
 
 
+        // ==========================================
+        // PLAY VIDEO
+        // ==========================================
 
-
-        // Play video
         if (videoRawImage != null)
         {
             videoRawImage.gameObject.SetActive(true);
         }
-
 
         if (videoPlayer != null)
         {
@@ -219,7 +278,6 @@ if (objectToEnable != null)
             videoPlayer.Stop();
             videoPlayer.Play();
 
-
             while (!videoFinished)
             {
                 yield return null;
@@ -227,53 +285,64 @@ if (objectToEnable != null)
         }
 
 
+        // ==========================================
+        // ENABLE PLAYER
+        // ==========================================
 
-        // Enable player before fade out
         if (playerMovement != null)
             playerMovement.enabled = true;
-
 
         if (playerCameraScript != null)
             playerCameraScript.enabled = true;
 
-
         if (flashlightController != null)
             flashlightController.enabled = true;
-
 
         if (flashlightObject != null)
             flashlightObject.SetActive(true);
 
 
+        // ==========================================
+        // FADE BLACK OUT
+        // ==========================================
 
-        // Fade black out
         while (blackScreen.color.a > 0)
         {
             Color c = blackScreen.color;
 
-            c.a -= fadeSpeed * Time.deltaTime;
+            c.a -= fadeSpeed *
+                   Time.deltaTime;
 
             blackScreen.color = c;
 
 
+            // Fade new music IN
             if (currentMusic != null)
             {
-                currentMusic.volume = Mathf.MoveTowards(
-                    currentMusic.volume,
-                    1f,
-                    musicFadeSpeed * Time.deltaTime);
+                currentMusic.volume =
+                    Mathf.MoveTowards(
+                        currentMusic.volume,
+                        1f,
+                        musicFadeSpeed *
+                        Time.deltaTime);
             }
-
 
             yield return null;
         }
 
 
-        Color finalColor = blackScreen.color;
-        finalColor.a = 0;
-        blackScreen.color = finalColor;
+        Color finalColor =
+            blackScreen.color;
+
+        finalColor.a = 0f;
+
+        blackScreen.color =
+            finalColor;
 
 
+        // ==========================================
+        // DISABLE DOOR AFTER USE
+        // ==========================================
 
         if (disableAfterUse)
         {
@@ -281,31 +350,35 @@ if (objectToEnable != null)
             gameObject.SetActive(false);
         }
 
-
         isBusy = false;
     }
 
 
+    // ==========================================
+    // VIDEO FINISHED
+    // ==========================================
 
     void VideoFinished(VideoPlayer vp)
-{
-    videoFinished = true;
-
-
-    if (videoRawImage != null)
     {
-        videoRawImage.gameObject.SetActive(false);
+        videoFinished = true;
+
+        if (videoRawImage != null)
+        {
+            videoRawImage.gameObject.SetActive(false);
+        }
+
+
+        // Enable object after video ends
+        if (objectToEnable != null)
+        {
+            objectToEnable.SetActive(true);
+        }
     }
 
 
-    // Enable object after video ends
-    if (objectToEnable != null)
-    {
-        objectToEnable.SetActive(true);
-    }
-}
-
-
+    // ==========================================
+    // GIZMOS
+    // ==========================================
 
     private void OnDrawGizmosSelected()
     {
