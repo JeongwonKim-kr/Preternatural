@@ -3226,7 +3226,12 @@ MonoBehaviour:
   maxDelay: 3
   minDuration: 0.05
   maxDuration: 0.4
-  glitchAmount: 5
+  sliceAmount: 15
+  sliceHeight: 0.25
+  characterDisappearChance: 0.15
+  characterShiftChance: 0.35
+  strongGlitchChance: 0.15
+  strongGlitchAmount: 35
 --- !u!1 &65464189 stripped
 GameObject:
   m_CorrespondingSourceObject: {fileID: 3956718657509565900, guid: 9e9220d135c534bb1886103d7d8cb0e9, type: 3}
@@ -14851,8 +14856,11 @@ MonoBehaviour:
   - {fileID: 8300000, guid: 5ad60a82cd72b254cb62ec4e7befae5b, type: 3}
   - {fileID: 8300000, guid: 46ccabca165e0df4b9afbc664127f32f, type: 3}
   - {fileID: 8300000, guid: 75ea0b91ba22f344fa24a7bffd05b56a, type: 3}
-  walkStepDelay: 0.7
-  sprintStepDelay: 0.4
+  walkStepDistance: 2.3
+  sprintStepDistance: 1.8
+  metalFootstepSounds: []
+  metalTag: Metal
+  groundCheckDistance: 1.5
   isHiding: 0
 --- !u!143 &284655524
 CharacterController:
@@ -75429,6 +75437,8 @@ MonoBehaviour:
   fadeSpeed: 2
   doorAudio: {fileID: 1418863831}
   doorOpenSound: {fileID: 8300000, guid: 34e7f4b2484ed4121b4afbf30f331abb, type: 3}
+  audioSourcesToFadeOut: []
+  audioFadeSpeed: 1.5
   currentMusic: {fileID: 792350275}
   newMusicClip: {fileID: 8300000, guid: 449989dbb9c6b4e6885e1bb897f6f679, type: 3}
   musicFadeSpeed: 1.5
@@ -95967,7 +95977,12 @@ MonoBehaviour:
   maxDelay: 3
   minDuration: 0.05
   maxDuration: 0.4
-  glitchAmount: 5
+  sliceAmount: 15
+  sliceHeight: 0.25
+  characterDisappearChance: 0.15
+  characterShiftChance: 0.35
+  strongGlitchChance: 0.15
+  strongGlitchAmount: 35
 --- !u!1 &1787294861 stripped
 GameObject:
   m_CorrespondingSourceObject: {fileID: 4646387972586280959, guid: 9e9220d135c534bb1886103d7d8cb0e9, type: 3}
@@ -101049,7 +101064,12 @@ MonoBehaviour:
   maxDelay: 3
   minDuration: 0.05
   maxDuration: 0.4
-  glitchAmount: 5
+  sliceAmount: 15
+  sliceHeight: 0.25
+  characterDisappearChance: 0.15
+  characterShiftChance: 0.35
+  strongGlitchChance: 0.15
+  strongGlitchAmount: 35
 --- !u!1 &1904947476
 GameObject:
   m_ObjectHideFlags: 0
@@ -108959,7 +108979,12 @@ MonoBehaviour:
   maxDelay: 3
   minDuration: 0.05
   maxDuration: 0.4
-  glitchAmount: 5
+  sliceAmount: 15
+  sliceHeight: 0.25
+  characterDisappearChance: 0.15
+  characterShiftChance: 0.35
+  strongGlitchChance: 0.15
+  strongGlitchAmount: 35
 --- !u!1 &2049910181
 GameObject:
   m_ObjectHideFlags: 0
@@ -111658,7 +111683,7 @@ GameObject:
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
   m_StaticEditorFlags: 2147483647
-  m_IsActive: 0
+  m_IsActive: 1
 --- !u!4 &2113485857
 Transform:
   m_ObjectHideFlags: 0
@@ -117199,6 +117224,8 @@ MonoBehaviour:
   fadeSpeed: 2
   doorAudio: {fileID: 8421755539208681601}
   doorOpenSound: {fileID: 8300000, guid: 34e7f4b2484ed4121b4afbf30f331abb, type: 3}
+  audioSourcesToFadeOut: []
+  audioFadeSpeed: 1.5
   currentMusic: {fileID: 792350275}
   newMusicClip: {fileID: 8300000, guid: 81fda4e94deb2479394f2e337984483d, type: 3}
   musicFadeSpeed: 1.5
