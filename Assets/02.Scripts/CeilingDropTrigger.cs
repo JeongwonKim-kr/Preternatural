@@ -8,7 +8,7 @@ public class CeilingDropTrigger : MonoBehaviour
 
     [Header("Movement")]
     public float dropDistance = 40f;
-    public float dropDuration = 30f;
+    public float dropDuration = 28f;
 
     [Header("Sound")]
     public AudioSource audioSource;

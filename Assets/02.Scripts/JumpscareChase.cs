@@ -1,7 +1,17 @@
 using UnityEngine;
 
-public class JumpscareChase1 : MonoBehaviour
+public class JumpscareChase : MonoBehaviour
 {
+    [Header("References")]
+    public Transform player;
+    public GameObject monster;
+
+    [Header("Jumpscare")]
+    public GameObject jumpscareObject;
+    public Animation monsterAnimation;
+    public AnimationClip jumpscareAnimation;
+    public float jumpscareDistance = 3f;
+
     [Header("Player")]
     public MonoBehaviour playerMovement;
     public MonoBehaviour cameraMovement;
@@ -24,25 +34,43 @@ public class JumpscareChase1 : MonoBehaviour
     private bool triggered = false;
 
 
-    // =========================================================
-    // PLAYER TOUCHES CEILING TRIGGER
-    // =========================================================
+    void Start()
+    {
+        // Jumpscare object starts disabled
+        if (jumpscareObject != null)
+            jumpscareObject.SetActive(true);
+    }
 
-    void OnTriggerEnter(Collider other)
+
+    void Update()
     {
         if (triggered)
             return;
 
-        if (!other.CompareTag("Player"))
+        if (player == null)
             return;
 
-        StartJumpscare();
+
+        // ==========================================
+        // CHECK DISTANCE
+        // ==========================================
+
+        float distance =
+            Vector3.Distance(
+                transform.position,
+                player.position);
+
+
+        if (distance <= jumpscareDistance)
+        {
+            StartJumpscare();
+        }
     }
 
 
-    // =========================================================
-    // START
-    // =========================================================
+    // ==========================================
+    // START JUMPSCARE
+    // ==========================================
 
     void StartJumpscare()
     {
@@ -53,11 +81,14 @@ public class JumpscareChase1 : MonoBehaviour
 
 
         // ==========================================
-        // ENABLE OBJECT
+        // ENABLE JUMPSCARE OBJECT
         // ==========================================
 
         if (objectToEnable != null)
             objectToEnable.SetActive(true);
+
+        if (jumpscareObject != null)
+            jumpscareObject.SetActive(true);
 
 
         // ==========================================
@@ -72,15 +103,12 @@ public class JumpscareChase1 : MonoBehaviour
         // DISABLE OTHER SOUNDS
         // ==========================================
 
-        if (soundsToDisable != null)
+        foreach (AudioSource sound in soundsToDisable)
         {
-            foreach (AudioSource sound in soundsToDisable)
+            if (sound != null)
             {
-                if (sound != null)
-                {
-                    sound.Stop();
-                    sound.enabled = false;
-                }
+                sound.Stop();
+                sound.enabled = false;
             }
         }
 
@@ -113,13 +141,31 @@ public class JumpscareChase1 : MonoBehaviour
 
 
         // ==========================================
+        // PLAY JUMPSCARE ANIMATION
+        // ==========================================
+
+        if (monsterAnimation != null &&
+            jumpscareAnimation != null)
+        {
+            monsterAnimation.Stop();
+
+            monsterAnimation.clip =
+                jumpscareAnimation;
+
+            monsterAnimation.Play(
+                jumpscareAnimation.name);
+        }
+
+
+        // ==========================================
         // PLAY JUMPSCARE SOUND
         // ==========================================
 
         if (audioSource != null &&
             jumpscareSound != null)
         {
-            audioSource.PlayOneShot(jumpscareSound);
+            audioSource.PlayOneShot(
+                jumpscareSound);
         }
     }
 }
