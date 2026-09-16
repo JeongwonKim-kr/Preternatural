@@ -1,7 +1,6 @@
 using System.Collections;
 using UnityEngine;
 using UnityEngine.UI;
-
 public class FirstPersonCamera : MonoBehaviour
 {
     [Header("Mouse Look")]
@@ -13,37 +12,34 @@ public class FirstPersonCamera : MonoBehaviour
     public PlayerMovement playerMovement;
     public RawImage blackScreen;
 
-
     [Header("Walking Bob")]
     public float walkBobSpeed = 10f;
     public float walkBobAmount = 0.045f;
-
 
     [Header("Sprint Bob")]
     public float sprintBobSpeed = 16f;
     public float sprintBobAmount = 0.085f;
 
-
     [Header("Camera Movement")]
     public float positionSmooth = 8f;
     public float rotationSmooth = 8f;
-
 
     [Header("Camera Roll")]
     public float walkRoll = 2.5f;
     public float strafeTilt = 3f;
     public float stepPitch = 1f;
 
-
     [Header("Sprint")]
     public KeyCode sprintKey = KeyCode.LeftShift;
-
 
     [Header("Field of View")]
     public float normalFOV = 55f;
     public float sprintFOV = 55f;
     public float fovSmooth = 8f;
 
+    [Header("Breathing")]
+    public float breathingSpeed = 1.5f;
+    public float breathingAmount = 0.008f;
 
     [Header("Wake Up Intro")]
     public float fadeDuration = 2f;
@@ -59,12 +55,13 @@ public class FirstPersonCamera : MonoBehaviour
     public float shakeFrequency = 18f;
     public float jitterAmount = 0.03f;
     public float delayBeforeControl = 0.5f;
+
+    [Header("Flashlight")]
     public GameObject flashlightObject;
     public FlashlightController flashlightController;
     public AudioSource equipAudioSource;
     public AudioClip equipSound;
     public float flashlightDelay = 0.35f;
-
 
     private Camera cam;
     private float xRotation;
@@ -72,19 +69,27 @@ public class FirstPersonCamera : MonoBehaviour
     private Vector3 defaultLocalPosition;
     private bool introFinished;
 
-public void SetXRotation(float rotation)
-{
-    xRotation = rotation;
-}
+    // =========================================================
+    // STAMINA CUTOFF
+    // =========================================================
+
+    private const float MIN_STAMINA = 0.001f;
+
+    public void SetXRotation(float rotation)
+    {
+        xRotation = rotation;
+    }
+
+    // =========================================================
+    // START
+    // =========================================================
 
     void Start()
     {
         Cursor.lockState = CursorLockMode.Locked;
         Cursor.visible = false;
 
-
         defaultLocalPosition = transform.localPosition;
-
 
         cam = GetComponent<Camera>();
 
@@ -107,7 +112,9 @@ public void SetXRotation(float rotation)
         StartCoroutine(WakeUpIntroRoutine());
     }
 
-
+    // =========================================================
+    // UPDATE
+    // =========================================================
 
     void Update()
     {
@@ -119,7 +126,9 @@ public void SetXRotation(float rotation)
         UpdateFOV();
     }
 
-
+    // =========================================================
+    // WAKE UP INTRO
+    // =========================================================
 
     IEnumerator WakeUpIntroRoutine()
     {
@@ -133,8 +142,17 @@ public void SetXRotation(float rotation)
         {
             timer += Time.deltaTime;
 
-            float t = Mathf.Clamp01(timer / wakeDuration);
-            float smooth = Mathf.SmoothStep(0f, 1f, t);
+            float t =
+                Mathf.Clamp01(
+                    timer / wakeDuration
+                );
+
+            float smooth =
+                Mathf.SmoothStep(
+                    0f,
+                    1f,
+                    t
+                );
 
             float pitchTarget = startPitch;
             float yawTarget = 0f;
@@ -144,39 +162,100 @@ public void SetXRotation(float rotation)
                 pitchTarget = startPitch;
                 yawTarget = 0f;
             }
-            else if (timer <= lieDownDuration + riseDuration)
+            else if (
+                timer <=
+                lieDownDuration +
+                riseDuration
+            )
             {
-                float riseT = Mathf.Clamp01((timer - lieDownDuration) / riseDuration);
-                pitchTarget = Mathf.Lerp(startPitch, 8f, Mathf.SmoothStep(0f, 1f, riseT));
+                float riseT =
+                    Mathf.Clamp01(
+                        (timer - lieDownDuration) /
+                        riseDuration
+                    );
+
+                pitchTarget =
+                    Mathf.Lerp(
+                        startPitch,
+                        8f,
+                        Mathf.SmoothStep(
+                            0f,
+                            1f,
+                            riseT
+                        )
+                    );
+
                 yawTarget = 0f;
             }
             else
             {
-                float frontT = Mathf.Clamp01((timer - lieDownDuration - riseDuration) / lookWallDuration);
-                pitchTarget = Mathf.Lerp(8f, endPitch, Mathf.SmoothStep(0f, 1f, frontT));
+                float frontT =
+                    Mathf.Clamp01(
+                        (
+                            timer -
+                            lieDownDuration -
+                            riseDuration
+                        ) /
+                        lookWallDuration
+                    );
+
+                pitchTarget =
+                    Mathf.Lerp(
+                        8f,
+                        endPitch,
+                        Mathf.SmoothStep(
+                            0f,
+                            1f,
+                            frontT
+                        )
+                    );
+
                 yawTarget = 0f;
             }
 
-            pitch = Mathf.Lerp(pitch, pitchTarget, Time.deltaTime * 2.5f);
+            pitch =
+                Mathf.Lerp(
+                    pitch,
+                    pitchTarget,
+                    Time.deltaTime * 2.5f
+                );
 
             float baseSway =
-                Mathf.Sin(Time.time * swaySpeed) *
+                Mathf.Sin(
+                    Time.time *
+                    swaySpeed
+                ) *
                 swayAmount *
                 (1f - smooth);
 
             float shake =
-                Mathf.Sin(Time.time * shakeFrequency) *
+                Mathf.Sin(
+                    Time.time *
+                    shakeFrequency
+                ) *
                 shakeAmount *
                 (1f - smooth);
 
             float jitter =
-                Mathf.Sin(Time.time * (shakeFrequency * 1.7f) + 0.5f) *
+                Mathf.Sin(
+                    Time.time *
+                    (shakeFrequency * 1.7f) +
+                    0.5f
+                ) *
                 jitterAmount *
                 (1f - smooth);
 
-            float finalPitch = pitch + shake * 0.6f;
-            float finalRoll = baseSway + jitter * 2f;
-            float finalYaw = yawTarget + shake * 1.5f;
+            float finalPitch =
+                pitch +
+                shake * 0.6f;
+
+            float finalRoll =
+                baseSway +
+                jitter * 2f;
+
+            float finalYaw =
+                yawTarget +
+                shake * 1.5f;
 
             transform.localRotation =
                 Quaternion.Euler(
@@ -185,10 +264,21 @@ public void SetXRotation(float rotation)
                     finalRoll
                 );
 
-            if (blackScreen != null && timer <= fadeDuration)
+            if (
+                blackScreen != null &&
+                timer <= fadeDuration
+            )
             {
-                Color color = blackScreen.color;
-                color.a = Mathf.Lerp(1f, 0f, timer / fadeDuration);
+                Color color =
+                    blackScreen.color;
+
+                color.a =
+                    Mathf.Lerp(
+                        1f,
+                        0f,
+                        timer / fadeDuration
+                    );
+
                 blackScreen.color = color;
             }
 
@@ -196,33 +286,65 @@ public void SetXRotation(float rotation)
         }
 
         float settleTimer = 0f;
+
         while (settleTimer < 0.8f)
         {
             settleTimer += Time.deltaTime;
-            float settleT = Mathf.Clamp01(settleTimer / 0.8f);
-            float eased = Mathf.SmoothStep(0f, 1f, settleT);
 
-            Quaternion targetRotation = Quaternion.Euler(endPitch, 0f, 0f);
-            transform.localRotation = Quaternion.Slerp(
-                transform.localRotation,
-                targetRotation,
-                eased
-            );
+            float settleT =
+                Mathf.Clamp01(
+                    settleTimer / 0.8f
+                );
+
+            float eased =
+                Mathf.SmoothStep(
+                    0f,
+                    1f,
+                    settleT
+                );
+
+            Quaternion targetRotation =
+                Quaternion.Euler(
+                    endPitch,
+                    0f,
+                    0f
+                );
+
+            transform.localRotation =
+                Quaternion.Slerp(
+                    transform.localRotation,
+                    targetRotation,
+                    eased
+                );
 
             yield return null;
         }
 
-        transform.localRotation = Quaternion.Euler(endPitch, 0f, 0f);
-        transform.localPosition = defaultLocalPosition;
+        transform.localRotation =
+            Quaternion.Euler(
+                endPitch,
+                0f,
+                0f
+            );
 
-        yield return new WaitForSeconds(delayBeforeControl);
+        transform.localPosition =
+            defaultLocalPosition;
+
+        yield return new WaitForSeconds(
+            delayBeforeControl
+        );
 
         if (playerMovement != null)
             playerMovement.enabled = true;
 
-        if (equipAudioSource != null && equipSound != null)
+        if (
+            equipAudioSource != null &&
+            equipSound != null
+        )
         {
-            equipAudioSource.PlayOneShot(equipSound);
+            equipAudioSource.PlayOneShot(
+                equipSound
+            );
         }
 
         if (flashlightObject != null)
@@ -242,7 +364,9 @@ public void SetXRotation(float rotation)
         introFinished = true;
     }
 
-
+    // =========================================================
+    // MOUSE LOOK
+    // =========================================================
 
     void MouseLook()
     {
@@ -251,13 +375,10 @@ public void SetXRotation(float rotation)
             mouseSensitivity *
             Time.deltaTime;
 
-
         float mouseY =
             Input.GetAxis("Mouse Y") *
             mouseSensitivity *
             Time.deltaTime;
-
-
 
         xRotation -= mouseY;
 
@@ -268,7 +389,6 @@ public void SetXRotation(float rotation)
                 85f
             );
 
-
         if (playerBody != null)
         {
             playerBody.Rotate(
@@ -278,45 +398,40 @@ public void SetXRotation(float rotation)
         }
     }
 
-
+    // =========================================================
+    // HEAD BOB
+    // =========================================================
 
     void HeadBob()
     {
         float horizontal =
             Input.GetAxisRaw("Horizontal");
 
-
         float vertical =
             Input.GetAxisRaw("Vertical");
 
-
-
         bool moving =
             controller.isGrounded &&
-            (horizontal != 0 || vertical != 0);
+            (horizontal != 0 ||
+             vertical != 0);
 
-
-
+        // Sprint only if stamina is ABOVE 0.001
         bool sprinting =
             moving &&
             Input.GetKey(sprintKey) &&
+            vertical > 0 &&
             playerMovement != null &&
-            playerMovement.StaminaPercent > 0f;
-
-
+            playerMovement.StaminaPercent > MIN_STAMINA;
 
         float bobSpeed =
             sprinting ?
             sprintBobSpeed :
             walkBobSpeed;
 
-
         float bobAmount =
             sprinting ?
             sprintBobAmount :
             walkBobAmount;
-
-
 
         if (moving)
         {
@@ -325,23 +440,26 @@ public void SetXRotation(float rotation)
                 bobSpeed;
         }
 
-
-
         float sin =
-            Mathf.Sin(bobTimer);
-
+            Mathf.Sin(
+                bobTimer
+            );
 
         float cos =
             Mathf.Cos(
                 bobTimer * 0.5f
             );
 
-
+        // Small breathing movement
+        float breathing =
+            Mathf.Sin(
+                Time.time *
+                breathingSpeed
+            ) *
+            breathingAmount;
 
         Vector3 targetPos =
             defaultLocalPosition;
-
-
 
         if (moving)
         {
@@ -349,20 +467,22 @@ public void SetXRotation(float rotation)
                 sin *
                 bobAmount;
 
-
             targetPos.x +=
                 cos *
                 bobAmount *
                 0.55f;
 
-
             targetPos.z +=
-                Mathf.Cos(bobTimer) *
+                Mathf.Cos(
+                    bobTimer
+                ) *
                 bobAmount *
                 0.25f;
         }
 
-
+        // Add subtle breathing
+        targetPos.y +=
+            breathing;
 
         transform.localPosition =
             Vector3.Lerp(
@@ -372,27 +492,21 @@ public void SetXRotation(float rotation)
                 positionSmooth
             );
 
-
-
         float roll =
             moving ?
             cos * walkRoll :
             0f;
 
-
         roll +=
             -horizontal *
             strafeTilt;
 
-
-
         float pitch =
             moving ?
-            sin *
-            stepPitch :
+            sin * stepPitch :
             0f;
 
-
+        // NO breathing pitch here
 
         Quaternion targetRotation =
             Quaternion.Euler(
@@ -400,8 +514,6 @@ public void SetXRotation(float rotation)
                 0f,
                 roll
             );
-
-
 
         transform.localRotation =
             Quaternion.Slerp(
@@ -412,20 +524,19 @@ public void SetXRotation(float rotation)
             );
     }
 
-
+    // =========================================================
+    // FOV
+    // =========================================================
 
     void UpdateFOV()
     {
         if (cam == null)
             return;
 
-
-
+        // Must be ABOVE 0.001 to sprint
         bool hasStamina =
             playerMovement == null ||
-            playerMovement.StaminaPercent > 0f;
-
-
+            playerMovement.StaminaPercent > MIN_STAMINA;
 
         bool sprinting =
             Input.GetKey(sprintKey) &&
@@ -433,14 +544,10 @@ public void SetXRotation(float rotation)
             controller.isGrounded &&
             hasStamina;
 
-
-
         float targetFOV =
             sprinting ?
             sprintFOV :
             normalFOV;
-
-
 
         cam.fieldOfView =
             Mathf.Lerp(

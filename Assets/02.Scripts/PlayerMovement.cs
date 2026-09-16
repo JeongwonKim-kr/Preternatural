@@ -1,4 +1,5 @@
 using UnityEngine;
+using UnityEngine.InputSystem;
 
 [RequireComponent(typeof(CharacterController))]
 public class PlayerMovement : MonoBehaviour
@@ -6,12 +7,12 @@ public class PlayerMovement : MonoBehaviour
     [Header("Movement")]
     public float walkSpeed = 3f;
     public float sprintSpeed = 5f;
-    public KeyCode sprintKey = KeyCode.LeftShift;
 
+    [Header("Mouse Sensitivity")]
+    public float mouseSensitivity = 700f;
 
     [Header("Gravity")]
     public float gravity = -20f;
-
 
     [Header("Stamina")]
     public Transform staminaBar;
@@ -20,29 +21,25 @@ public class PlayerMovement : MonoBehaviour
     public float staminaRegen = 8f;
     public float regenDelay = 1.5f;
 
-
     [Header("3D Bar Fade")]
     public float fadeSpeed = 5f;
-
 
     [Header("Footsteps")]
     public AudioSource audioSource;
     public AudioClip[] footstepSounds;
-    
 
     public float walkStepDistance = 2.3f;
     public float sprintStepDistance = 1.8f;
 
-
     [Header("Metal Footsteps")]
     public AudioClip[] metalFootstepSounds;
-
 
     [Header("Metal Detection")]
     public string metalTag = "Metal";
     public float groundCheckDistance = 1.5f;
-    
 
+    [Header("isHiding")]
+    public bool isHiding = false;
 
     private CharacterController controller;
     private Vector3 velocity;
@@ -50,12 +47,8 @@ public class PlayerMovement : MonoBehaviour
     private float stamina;
     private float regenTimer;
 
-    // Distance traveled since last footstep
     private float distanceSinceFootstep;
-
-    // Position used to calculate movement distance
     private Vector3 lastFootstepPosition;
-
 
     private Vector3 originalBarScale;
 
@@ -64,12 +57,10 @@ public class PlayerMovement : MonoBehaviour
 
     private bool staminaUsed;
 
+    // Sprint becomes unavailable at or below this value.
+    private const float MIN_STAMINA = 0.001f;
 
-    [Header("isHiding")]
-    public bool isHiding = false;
-
-
-    void Start()
+    private void Start()
     {
         controller = GetComponent<CharacterController>();
 
@@ -78,11 +69,9 @@ public class PlayerMovement : MonoBehaviour
 
         stamina = maxStamina;
 
-
         if (staminaBar != null)
         {
-            originalBarScale =
-                staminaBar.localScale;
+            originalBarScale = staminaBar.localScale;
 
             staminaRenderer =
                 staminaBar.GetComponent<Renderer>();
@@ -94,75 +83,73 @@ public class PlayerMovement : MonoBehaviour
             }
         }
 
-
-        // Start measuring footsteps from player's starting position
-        lastFootstepPosition = transform.position;
+        lastFootstepPosition =
+            transform.position;
 
         distanceSinceFootstep = 0f;
 
-
-        SetBarAlpha(0);
+        SetBarAlpha(0f);
     }
 
-
-    void Update()
+    private void Update()
     {
         MovePlayer();
-
         ApplyGravity();
-
         UpdateStamina();
-
         HandleFootsteps();
-
         FadeStamina();
     }
-
 
     // =========================================================
     // MOVEMENT
     // =========================================================
 
-    void MovePlayer()
+    private void MovePlayer()
     {
-        float horizontal =
-            Input.GetAxisRaw("Horizontal");
+        if (Keyboard.current == null)
+            return;
 
-        float vertical =
-            Input.GetAxisRaw("Vertical");
+        float horizontal = 0f;
+        float vertical = 0f;
 
+        if (Keyboard.current.aKey.isPressed)
+            horizontal -= 1f;
+
+        if (Keyboard.current.dKey.isPressed)
+            horizontal += 1f;
+
+        if (Keyboard.current.sKey.isPressed)
+            vertical -= 1f;
+
+        if (Keyboard.current.wKey.isPressed)
+            vertical += 1f;
 
         Vector3 move =
             transform.right * horizontal +
             transform.forward * vertical;
 
-
         if (move.sqrMagnitude > 1f)
             move.Normalize();
 
-
+        // LEFT SHIFT = SPRINT
         bool wantsSprint =
-            Input.GetKey(sprintKey) &&
-            vertical > 0;
-
+            Keyboard.current.leftShiftKey.isPressed &&
+            vertical > 0f;
 
         bool sprinting =
             wantsSprint &&
-            stamina > 0;
-
+            stamina > MIN_STAMINA;
 
         float currentSpeed =
-            sprinting ?
-            sprintSpeed :
-            walkSpeed;
-
+            sprinting
+                ? sprintSpeed
+                : walkSpeed;
 
         controller.Move(
             move *
             currentSpeed *
             Time.deltaTime
         );
-
 
         if (sprinting)
         {
@@ -172,20 +159,20 @@ public class PlayerMovement : MonoBehaviour
 
             staminaUsed = true;
 
-            regenTimer = 0;
+            regenTimer = 0f;
 
-
-            if (stamina < 0.1f)
-                stamina = 0.1f;
+            if (stamina <= MIN_STAMINA)
+            {
+                stamina = MIN_STAMINA;
+            }
         }
     }
-
 
     // =========================================================
     // GRAVITY
     // =========================================================
 
-    void ApplyGravity()
+    private void ApplyGravity()
     {
         if (controller.isGrounded)
         {
@@ -198,25 +185,22 @@ public class PlayerMovement : MonoBehaviour
                 Time.deltaTime;
         }
 
-
         controller.Move(
             velocity *
             Time.deltaTime
         );
     }
 
-
     // =========================================================
     // STAMINA
     // =========================================================
 
-    void UpdateStamina()
+    private void UpdateStamina()
     {
         if (stamina < maxStamina)
         {
             regenTimer +=
                 Time.deltaTime;
-
 
             if (regenTimer >= regenDelay)
             {
@@ -224,19 +208,15 @@ public class PlayerMovement : MonoBehaviour
                     staminaRegen *
                     Time.deltaTime;
 
-
                 if (stamina > maxStamina)
                     stamina = maxStamina;
             }
         }
 
-
         if (staminaBar != null)
         {
             float percent =
-                stamina /
-                maxStamina;
-
+                stamina / maxStamina;
 
             staminaBar.localScale =
                 new Vector3(
@@ -246,36 +226,30 @@ public class PlayerMovement : MonoBehaviour
                 );
         }
 
-
         if (stamina >= maxStamina)
         {
             staminaUsed = false;
         }
     }
 
-
     // =========================================================
     // STAMINA FADE
     // =========================================================
 
-    void FadeStamina()
+    private void FadeStamina()
     {
         if (staminaMaterial == null)
             return;
-
 
         bool visible =
             staminaUsed ||
             stamina < maxStamina;
 
-
         float targetAlpha =
             visible ? 1f : 0f;
 
-
         Color color =
             staminaMaterial.color;
-
 
         color.a = Mathf.Lerp(
             color.a,
@@ -284,17 +258,14 @@ public class PlayerMovement : MonoBehaviour
             fadeSpeed
         );
 
-
         staminaMaterial.color =
             color;
     }
 
-
-    void SetBarAlpha(float alpha)
+    private void SetBarAlpha(float alpha)
     {
         if (staminaMaterial == null)
             return;
-
 
         Color color =
             staminaMaterial.color;
@@ -305,70 +276,54 @@ public class PlayerMovement : MonoBehaviour
             color;
     }
 
-
     // =========================================================
     // FOOTSTEPS
     // =========================================================
 
-    void HandleFootsteps()
+    private void HandleFootsteps()
     {
+        if (Keyboard.current == null)
+            return;
+
         bool moving =
-            Input.GetAxisRaw("Horizontal") != 0 ||
-            Input.GetAxisRaw("Vertical") != 0;
+            Keyboard.current.wKey.isPressed ||
+            Keyboard.current.aKey.isPressed ||
+            Keyboard.current.sKey.isPressed ||
+            Keyboard.current.dKey.isPressed;
 
-
-        // Don't count movement while in the air
         if (!moving ||
             !controller.isGrounded)
         {
-            // Update position so falling/teleporting
-            // doesn't create a huge distance jump.
             lastFootstepPosition =
                 transform.position;
 
             return;
         }
 
-
-        // ==========================================
-        // CALCULATE ACTUAL DISTANCE MOVED
-        // ==========================================
-
         float movedDistance =
             Vector3.Distance(
                 transform.position,
-                lastFootstepPosition);
-
+                lastFootstepPosition
+            );
 
         distanceSinceFootstep +=
             movedDistance;
 
-
         lastFootstepPosition =
             transform.position;
 
-
-        // ==========================================
-        // CHECK SPRINTING
-        // ==========================================
-
         bool sprinting =
-            Input.GetKey(sprintKey) &&
-            Input.GetAxisRaw("Vertical") > 0 &&
-            stamina > 0;
-
+            Keyboard.current.leftShiftKey.isPressed &&
+            Keyboard.current.wKey.isPressed &&
+            stamina > MIN_STAMINA;
 
         float requiredDistance =
-            sprinting ?
-            sprintStepDistance :
-            walkStepDistance;
+            sprinting
+                ? sprintStepDistance
+                : walkStepDistance;
 
-
-        // ==========================================
-        // PLAY FOOTSTEP AFTER DISTANCE
-        // ==========================================
-
-        if (distanceSinceFootstep >= requiredDistance)
+        if (distanceSinceFootstep >=
+            requiredDistance)
         {
             PlayFootstep();
 
@@ -376,21 +331,17 @@ public class PlayerMovement : MonoBehaviour
         }
     }
 
-
     // =========================================================
     // PLAY FOOTSTEP
     // =========================================================
 
-    void PlayFootstep()
+    private void PlayFootstep()
     {
         if (audioSource == null)
             return;
 
-
         RaycastHit hit;
 
-
-        // Check what GameObject is directly underneath
         bool hitGround =
             Physics.Raycast(
                 transform.position,
@@ -401,7 +352,6 @@ public class PlayerMovement : MonoBehaviour
                 QueryTriggerInteraction.Ignore
             );
 
-
         // =====================================================
         // METAL
         // =====================================================
@@ -410,7 +360,6 @@ public class PlayerMovement : MonoBehaviour
         {
             GameObject groundObject =
                 hit.collider.gameObject;
-
 
             if (groundObject.CompareTag(metalTag))
             {
@@ -423,24 +372,21 @@ public class PlayerMovement : MonoBehaviour
                             metalFootstepSounds.Length
                         );
 
-
                     AudioClip metalSound =
                         metalFootstepSounds[index];
 
-
                     if (metalSound != null)
                     {
-audioSource.PlayOneShot(
-    metalSound,
-    1.3f
-);
+                        audioSource.PlayOneShot(
+                            metalSound,
+                            1.7f
+                        );
 
                         return;
                     }
                 }
             }
         }
-
 
         // =====================================================
         // NORMAL FOOTSTEP
@@ -450,17 +396,14 @@ audioSource.PlayOneShot(
             footstepSounds.Length == 0)
             return;
 
-
         int normalIndex =
             Random.Range(
                 0,
                 footstepSounds.Length
             );
 
-
         AudioClip normalSound =
             footstepSounds[normalIndex];
-
 
         if (normalSound != null)
         {
@@ -469,7 +412,6 @@ audioSource.PlayOneShot(
             );
         }
     }
-
 
     // =========================================================
     // STAMINA PERCENT
@@ -483,7 +425,6 @@ audioSource.PlayOneShot(
         }
     }
 
-
     // =========================================================
     // IS SPRINTING
     // =========================================================
@@ -492,8 +433,13 @@ audioSource.PlayOneShot(
     {
         get
         {
-            return Input.GetKey(sprintKey)
-                && stamina > 0.1f;
+            if (Keyboard.current == null)
+                return false;
+
+            return
+                Keyboard.current.leftShiftKey.isPressed &&
+                Keyboard.current.wKey.isPressed &&
+                stamina > MIN_STAMINA;
         }
     }
 }
