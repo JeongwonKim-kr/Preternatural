@@ -42,7 +42,7 @@ public class SettingsMenu : MonoBehaviour
     public GameObject crosshair;
 
     [Header("Player")]
-    public PlayerMovement playerMovement;
+    public FirstPersonCamera FirstPersonCamera;
 
     [Header("Black RawImage Controller")]
     public BlackRawImageSettingsController blackRawImageSettingsController;
@@ -55,15 +55,15 @@ public class SettingsMenu : MonoBehaviour
     public AudioClip openCloseSound;
 
     [Header("Sound")]
-    [Range(0f, 1f)]
+    [Range(0f, 2f)]
     public float soundValue = 1f;
 
     [Header("Sensitivity")]
-    [Range(0.1f, 2f)]
+    [Range(0.1f, 4f)]
     public float sensitivityValue = 1f;
 
     [Header("Selector")]
-    public float selectorSpacing = 25f;
+    public float selectorSpacing = 0f;
 
     [Header("Mouse")]
     public bool lockMouseWhenClosed = true;
@@ -72,7 +72,7 @@ public class SettingsMenu : MonoBehaviour
     public string homeScreenSceneName = "HomeScreen";
     public RawImage fadeImage;
     public float fadeDuration = 0.5f;
-    public float waitBeforeHomeScreen = 4f;
+    public float waitBeforeHomeScreen = 3f;
 
     [Header("Text")]
     public string playText = "PLAY";
@@ -110,6 +110,9 @@ public class SettingsMenu : MonoBehaviour
 
     private void Start()
     {
+        playStopText.gameObject.SetActive(true);
+        playStopText.text = "PLAY";
+        playStopText.enabled = true;
         if (menuRoot == null)
         {
             menuRoot = transform.root.gameObject;
@@ -140,9 +143,9 @@ public class SettingsMenu : MonoBehaviour
         SetToggleObjects(true);
         SetToggleObjects1(false);
 
-        if (playerMovement != null)
+        if (FirstPersonCamera != null)
         {
-            playerMovement.enabled = true;
+            FirstPersonCamera.enabled = true;
         }
 
         if (playStopText != null)
@@ -310,9 +313,9 @@ public class SettingsMenu : MonoBehaviour
         previousTimeScale = Time.timeScale;
         previousAudioPause = AudioListener.pause;
 
-        if (playerMovement != null)
+        if (FirstPersonCamera != null)
         {
-            playerMovement.enabled = false;
+            FirstPersonCamera.enabled = false;
         }
 
         if (settingsPanel != null)
@@ -373,9 +376,9 @@ public class SettingsMenu : MonoBehaviour
         Time.timeScale = previousTimeScale;
         AudioListener.pause = previousAudioPause;
 
-        if (playerMovement != null)
+        if (FirstPersonCamera != null)
         {
-            playerMovement.enabled = true;
+            FirstPersonCamera.enabled = true;
         }
 
         if (settingsPanel != null)
@@ -614,51 +617,58 @@ public class SettingsMenu : MonoBehaviour
     }
 
     private void HandleEditing(Keyboard keyboard)
+{
+    // ENTER = CONFIRM VALUE
+    if (keyboard.enterKey.wasPressedThisFrame ||
+        keyboard.numpadEnterKey.wasPressedThisFrame)
     {
-        if (keyboard.enterKey.wasPressedThisFrame ||
-            keyboard.numpadEnterKey.wasPressedThisFrame)
-        {
-            editing = false;
+        editing = false;
 
-            StopBlink();
+        StopBlink();
 
-            UpdateSoundText();
-            UpdateSensitivityText();
-            UpdateSelector();
+        UpdateSoundText();
+        UpdateSensitivityText();
+        UpdateSelector();
 
-            SaveSettings();
+        SaveSettings();
 
-            PlayMenuSound(selectSound);
+        PlayMenuSound(selectSound);
 
-            return;
-        }
+        // IMPORTANT:
+        // Do not allow this Enter press to activate END TAPE.
+        nextSelectionTime =
+            Time.unscaledTime + inputCooldown;
 
-        if (Time.unscaledTime <
-            nextValueChangeTime)
-        {
-            return;
-        }
-
-        if (keyboard.leftArrowKey.wasPressedThisFrame)
-        {
-            ChangeCurrentValue(-0.1f);
-
-            nextValueChangeTime =
-                Time.unscaledTime + inputCooldown;
-
-            return;
-        }
-
-        if (keyboard.rightArrowKey.wasPressedThisFrame)
-        {
-            ChangeCurrentValue(0.1f);
-
-            nextValueChangeTime =
-                Time.unscaledTime + inputCooldown;
-
-            return;
-        }
+        return;
     }
+
+    if (Time.unscaledTime < nextValueChangeTime)
+    {
+        return;
+    }
+
+    // LEFT
+    if (keyboard.leftArrowKey.wasPressedThisFrame)
+    {
+        ChangeCurrentValue(-0.1f);
+
+        nextValueChangeTime =
+            Time.unscaledTime + inputCooldown;
+
+        return;
+    }
+
+    // RIGHT
+    if (keyboard.rightArrowKey.wasPressedThisFrame)
+    {
+        ChangeCurrentValue(0.1f);
+
+        nextValueChangeTime =
+            Time.unscaledTime + inputCooldown;
+
+        return;
+    }
+}
 
     // =========================================================
     // VALUE
@@ -671,7 +681,7 @@ public class SettingsMenu : MonoBehaviour
             soundValue += amount;
 
             soundValue =
-                Mathf.Clamp01(soundValue);
+                soundValue = Mathf.Clamp(soundValue, 0f, 2f);
 
             ApplySound();
             UpdateSoundText();
@@ -684,7 +694,7 @@ public class SettingsMenu : MonoBehaviour
                 Mathf.Clamp(
                     sensitivityValue,
                     0.1f,
-                    2f);
+                    4f);
 
             ApplySensitivity();
             UpdateSensitivityText();
@@ -725,13 +735,13 @@ public class SettingsMenu : MonoBehaviour
 
     private void ApplySensitivity()
     {
-        if (playerMovement == null)
+        if (FirstPersonCamera == null)
         {
             return;
         }
 
-        playerMovement.mouseSensitivity =
-            700f * sensitivityValue;
+        FirstPersonCamera.mouseSensitivity =
+            40f * sensitivityValue;
     }
 
     private void UpdateSensitivityText()
@@ -952,9 +962,9 @@ public class SettingsMenu : MonoBehaviour
 
         Time.timeScale = 0f;
 
-        if (playerMovement != null)
+        if (FirstPersonCamera != null)
         {
-            playerMovement.enabled = false;
+            FirstPersonCamera.enabled = false;
         }
 
         DisableExitObjects();
@@ -972,7 +982,7 @@ public class SettingsMenu : MonoBehaviour
         if (playStopText != null)
         {
             playStopText.gameObject.SetActive(true);
-            playStopText.text = stopText;
+            playStopText.text = " ";
             playStopText.enabled = true;
         }
 
@@ -1044,6 +1054,12 @@ public class SettingsMenu : MonoBehaviour
 
     private void DisableExitObjects()
     {
+        if (playStopText != null)
+        {
+            playStopText.enabled = false;
+            playStopText.gameObject.SetActive(false);
+        }
+
         if (objectsToDisableOnExit == null)
         {
             return;
@@ -1071,6 +1087,12 @@ public class SettingsMenu : MonoBehaviour
 
     private void HideMenuRootAfterExit()
     {
+        if (playStopText != null)
+        {
+            playStopText.enabled = false;
+            playStopText.gameObject.SetActive(false);
+        }
+
         if (menuRoot != null)
         {
             menuRoot.SetActive(false);
@@ -1159,8 +1181,7 @@ public class SettingsMenu : MonoBehaviour
                 sensitivityPlayerPrefsKey))
         {
             sensitivityValue =
-                PlayerPrefs.GetFloat(
-                    sensitivityPlayerPrefsKey);
+                PlayerPrefs.GetFloat(sensitivityPlayerPrefsKey, 2f);
         }
 
         soundValue =
@@ -1170,7 +1191,7 @@ public class SettingsMenu : MonoBehaviour
             Mathf.Clamp(
                 sensitivityValue,
                 0.1f,
-                2f);
+                4f);
 
         ApplySound();
         ApplySensitivity();

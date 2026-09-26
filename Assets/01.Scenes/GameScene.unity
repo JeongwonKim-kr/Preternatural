@@ -17753,7 +17753,6 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::PlayerMovement
   walkSpeed: 3
   sprintSpeed: 5
-  mouseSensitivity: 700
   gravity: -9.81
   staminaBar: {fileID: 2065824201}
   maxStamina: 100
@@ -20007,15 +20006,15 @@ MonoBehaviour:
   selectorText: {fileID: 1066326714}
   playStopText: {fileID: 1650045990}
   crosshair: {fileID: 179794958}
-  playerMovement: {fileID: 284655523}
+  FirstPersonCamera: {fileID: 368442797}
   blackRawImageSettingsController: {fileID: 2103515551}
   menuAudioSource: {fileID: 309399064}
   moveSound: {fileID: 8300000, guid: 52213b3531f1144299171270e666fada, type: 3}
   changeSound: {fileID: 8300000, guid: dbf9bc16ebc45433dad3ccfb978776b1, type: 3}
   selectSound: {fileID: 8300000, guid: 5770dd4f6c64a428da6bc3d1958710a3, type: 3}
   openCloseSound: {fileID: 8300000, guid: b3c0dcb818eb843c3aebb3fcfc16740b, type: 3}
-  soundValue: 0
-  sensitivityValue: 0.1
+  soundValue: 1
+  sensitivityValue: 1
   selectorSpacing: 0
   lockMouseWhenClosed: 1
   homeScreenSceneName: HomeScreen

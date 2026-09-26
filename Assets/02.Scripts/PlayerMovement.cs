@@ -8,8 +8,6 @@ public class PlayerMovement : MonoBehaviour
     public float walkSpeed = 3f;
     public float sprintSpeed = 5f;
 
-    [Header("Mouse Sensitivity")]
-    public float mouseSensitivity = 700f;
 
     [Header("Gravity")]
     public float gravity = -20f;
