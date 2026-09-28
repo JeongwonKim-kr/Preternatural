@@ -3277,8 +3277,8 @@ GameObject:
   - component: {fileID: 64718901}
   - component: {fileID: 64718900}
   - component: {fileID: 64718899}
-  - component: {fileID: 64718902}
   - component: {fileID: 64718903}
+  - component: {fileID: 64718904}
   m_Layer: 5
   m_Name: HOME
   m_TagString: Untagged
@@ -3306,7 +3306,7 @@ MonoBehaviour:
   m_OnCullStateChanged:
     m_PersistentCalls:
       m_Calls: []
-  m_text: MAIN MENU
+  m_text: EXIT TAPE
   m_isRightToLeft: 0
   m_fontAsset: {fileID: 11400000, guid: b929f5067127c4e1a8469fb5fb9e627a, type: 2}
   m_sharedMaterial: {fileID: -2929226686255967672, guid: b929f5067127c4e1a8469fb5fb9e627a, type: 2}
@@ -3340,7 +3340,7 @@ MonoBehaviour:
   m_fontSizeMin: 18
   m_fontSizeMax: 72
   m_fontStyle: 0
-  m_HorizontalAlignment: 4
+  m_HorizontalAlignment: 2
   m_VerticalAlignment: 256
   m_textAlignment: 65535
   m_characterSpacing: 0
@@ -3372,7 +3372,7 @@ MonoBehaviour:
   m_VertexBufferAutoSizeReduction: 0
   m_useMaxVisibleDescender: 1
   m_pageToDisplay: 1
-  m_margin: {x: 0, y: 0, z: 0, w: 0}
+  m_margin: {x: 0.98902893, y: 0, z: 0, w: 0}
   m_isUsingLegacyAnimationComponent: 0
   m_isVolumetricText: 0
   m_hasFontAssetChanged: 0
@@ -3393,7 +3393,7 @@ RectTransform:
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 64718898}
-  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
+  m_LocalRotation: {x: -0, y: -0, z: -0, w: 1}
   m_LocalPosition: {x: 0, y: 0, z: 0}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
@@ -3402,10 +3402,33 @@ RectTransform:
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
   m_AnchorMin: {x: 0.5, y: 0.5}
   m_AnchorMax: {x: 0.5, y: 0.5}
-  m_AnchoredPosition: {x: 100, y: -200}
-  m_SizeDelta: {x: 750, y: 80}
+  m_AnchoredPosition: {x: 250, y: -200}
+  m_SizeDelta: {x: 500, y: 80}
   m_Pivot: {x: 0.5, y: 0.5}
---- !u!114 &64718902
+--- !u!114 &64718903
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 64718898}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: cf60fd14304b1404c85db03e1647af16, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::TextGlitch
+  text: {fileID: 64718899}
+  minDelay: 1
+  maxDelay: 3
+  minDuration: 0.05
+  maxDuration: 0.4
+  sliceAmount: 15
+  sliceHeight: 0.25
+  characterDisappearChance: 0.15
+  characterShiftChance: 0.35
+  strongGlitchChance: 0.15
+  strongGlitchAmount: 35
+--- !u!114 &64718904
 MonoBehaviour:
   m_ObjectHideFlags: 0
   m_CorrespondingSourceObject: {fileID: 0}
@@ -3448,30 +3471,19 @@ MonoBehaviour:
   m_TargetGraphic: {fileID: 64718899}
   m_OnClick:
     m_PersistentCalls:
-      m_Calls: []
---- !u!114 &64718903
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 64718898}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: cf60fd14304b1404c85db03e1647af16, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: Assembly-CSharp::TextGlitch
-  text: {fileID: 64718899}
-  minDelay: 1
-  maxDelay: 3
-  minDuration: 0.05
-  maxDuration: 0.4
-  sliceAmount: 15
-  sliceHeight: 0.25
-  characterDisappearChance: 0.15
-  characterShiftChance: 0.35
-  strongGlitchChance: 0.15
-  strongGlitchAmount: 35
+      m_Calls:
+      - m_Target: {fileID: 845624162}
+        m_TargetAssemblyTypeName: DeadScreenController, Assembly-CSharp
+        m_MethodName: Menu
+        m_Mode: 1
+        m_Arguments:
+          m_ObjectArgument: {fileID: 0}
+          m_ObjectArgumentAssemblyTypeName: UnityEngine.Object, UnityEngine
+          m_IntArgument: 0
+          m_FloatArgument: 0
+          m_StringArgument: 
+          m_BoolArgument: 0
+        m_CallState: 2
 --- !u!1 &65464189 stripped
 GameObject:
   m_CorrespondingSourceObject: {fileID: 3956718657509565900, guid: 9e9220d135c534bb1886103d7d8cb0e9, type: 3}
@@ -23397,7 +23409,6 @@ MonoBehaviour:
   walkRoll: 2.5
   strafeTilt: 3
   stepPitch: 1
-  sprintKey: 304
   normalFOV: 55
   sprintFOV: 55
   fovSmooth: 8
@@ -31414,7 +31425,7 @@ CanvasRenderer:
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 492568284}
-  m_CullTransparentMesh: 1
+  m_CullTransparentMesh: 0
 --- !u!1 &493272994
 GameObject:
   m_ObjectHideFlags: 0
@@ -45110,9 +45121,9 @@ RectTransform:
   - {fileID: 260822400}
   - {fileID: 1913489018}
   - {fileID: 1786132899}
-  - {fileID: 2047834181}
-  - {fileID: 64718901}
   - {fileID: 1903737145}
+  - {fileID: 64718901}
+  - {fileID: 2047834181}
   - {fileID: 309399062}
   - {fileID: 492568285}
   - {fileID: 900966087}
@@ -54505,8 +54516,8 @@ MonoBehaviour:
   rewindText: {fileID: 2047834183}
   homeText: {fileID: 64718899}
   timerText: {fileID: 1903737146}
-  rewindButton: {fileID: 2047834184}
-  homeButton: {fileID: 64718902}
+  rewindButton: {fileID: 2047834186}
+  homeButton: {fileID: 64718904}
   rewindScene: GameScene
   menuScene: Homescreen
   musicSource: {fileID: 845624161}
@@ -133700,8 +133711,8 @@ GameObject:
   - component: {fileID: 2047834181}
   - component: {fileID: 2047834182}
   - component: {fileID: 2047834183}
-  - component: {fileID: 2047834184}
   - component: {fileID: 2047834185}
+  - component: {fileID: 2047834186}
   m_Layer: 5
   m_Name: REWIND
   m_TagString: Untagged
@@ -133725,8 +133736,8 @@ RectTransform:
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
   m_AnchorMin: {x: 0.5, y: 0.5}
   m_AnchorMax: {x: 0.5, y: 0.5}
-  m_AnchoredPosition: {x: 0, y: -200}
-  m_SizeDelta: {x: 750, y: 80}
+  m_AnchoredPosition: {x: -250, y: -200}
+  m_SizeDelta: {x: 300, y: 80}
   m_Pivot: {x: 0.5, y: 0.5}
 --- !u!222 &2047834182
 CanvasRenderer:
@@ -133790,7 +133801,7 @@ MonoBehaviour:
   m_fontSizeMin: 18
   m_fontSizeMax: 72
   m_fontStyle: 0
-  m_HorizontalAlignment: 1
+  m_HorizontalAlignment: 2
   m_VerticalAlignment: 256
   m_textAlignment: 65535
   m_characterSpacing: 0
@@ -133822,13 +133833,36 @@ MonoBehaviour:
   m_VertexBufferAutoSizeReduction: 0
   m_useMaxVisibleDescender: 1
   m_pageToDisplay: 1
-  m_margin: {x: 0, y: 0, z: 0, w: 0}
+  m_margin: {x: -0.4902726, y: 0, z: -0.32280728, w: 0}
   m_isUsingLegacyAnimationComponent: 0
   m_isVolumetricText: 0
   m_hasFontAssetChanged: 0
   m_baseMaterial: {fileID: 0}
   m_maskOffset: {x: 0, y: 0, z: 0, w: 0}
---- !u!114 &2047834184
+--- !u!114 &2047834185
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 2047834180}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: cf60fd14304b1404c85db03e1647af16, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::TextGlitch
+  text: {fileID: 2047834183}
+  minDelay: 1
+  maxDelay: 3
+  minDuration: 0.05
+  maxDuration: 0.4
+  sliceAmount: 15
+  sliceHeight: 0.25
+  characterDisappearChance: 0.15
+  characterShiftChance: 0.35
+  strongGlitchChance: 0.15
+  strongGlitchAmount: 35
+--- !u!114 &2047834186
 MonoBehaviour:
   m_ObjectHideFlags: 0
   m_CorrespondingSourceObject: {fileID: 0}
@@ -133871,30 +133905,19 @@ MonoBehaviour:
   m_TargetGraphic: {fileID: 2047834183}
   m_OnClick:
     m_PersistentCalls:
-      m_Calls: []
---- !u!114 &2047834185
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 2047834180}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: cf60fd14304b1404c85db03e1647af16, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: Assembly-CSharp::TextGlitch
-  text: {fileID: 2047834183}
-  minDelay: 1
-  maxDelay: 3
-  minDuration: 0.05
-  maxDuration: 0.4
-  sliceAmount: 15
-  sliceHeight: 0.25
-  characterDisappearChance: 0.15
-  characterShiftChance: 0.35
-  strongGlitchChance: 0.15
-  strongGlitchAmount: 35
+      m_Calls:
+      - m_Target: {fileID: 845624162}
+        m_TargetAssemblyTypeName: DeadScreenController, Assembly-CSharp
+        m_MethodName: Rewind
+        m_Mode: 1
+        m_Arguments:
+          m_ObjectArgument: {fileID: 0}
+          m_ObjectArgumentAssemblyTypeName: UnityEngine.Object, UnityEngine
+          m_IntArgument: 0
+          m_FloatArgument: 0
+          m_StringArgument: 
+          m_BoolArgument: 0
+        m_CallState: 2
 --- !u!1 &2049910181
 GameObject:
   m_ObjectHideFlags: 0

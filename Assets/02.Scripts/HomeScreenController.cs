@@ -24,6 +24,9 @@ public class HomeScreenController : MonoBehaviour
     public TMP_Text exitText;
     public TMP_Text selectorText;
 
+    [Header("Settings")]
+    public GameObject settingsObject;
+
     [Header("Selector")]
     public float selectorSpacing = 25f;
 
@@ -34,9 +37,12 @@ public class HomeScreenController : MonoBehaviour
     public RawImage fadeImage;
     public float fadeDuration = 0.5f;
 
-    [Header("Background Music")]
+    [Header("Home Screen Background Music")]
     public AudioSource backgroundAudioSource;
     public float musicFadeDuration = 0.5f;
+
+    [Header("Gameplay Background Music")]
+    public AudioSource gameplayBackgroundAudioSource;
 
     [Header("Menu Sounds")]
     public AudioSource menuAudioSource;
@@ -61,7 +67,7 @@ public class HomeScreenController : MonoBehaviour
         AudioListener.pause = false;
 
         // -----------------------------------------------------
-        // BACKGROUND MUSIC
+        // HOME SCREEN BACKGROUND MUSIC
         // -----------------------------------------------------
 
         if (backgroundAudioSource != null)
@@ -72,6 +78,21 @@ public class HomeScreenController : MonoBehaviour
             if (!backgroundAudioSource.isPlaying)
                 backgroundAudioSource.Play();
         }
+
+        // -----------------------------------------------------
+        // GAMEPLAY BACKGROUND MUSIC
+        // -----------------------------------------------------
+
+        if (gameplayBackgroundAudioSource != null)
+        {
+            gameplayBackgroundAudioSource.ignoreListenerPause = true;
+            gameplayBackgroundAudioSource.loop = true;
+            gameplayBackgroundAudioSource.Stop();
+        }
+
+        // -----------------------------------------------------
+        // MENU SOUND
+        // -----------------------------------------------------
 
         if (menuAudioSource != null)
             menuAudioSource.ignoreListenerPause = true;
@@ -97,6 +118,13 @@ public class HomeScreenController : MonoBehaviour
         SetObjectsActive(false);
 
         // -----------------------------------------------------
+        // DISABLE SETTINGS
+        // -----------------------------------------------------
+
+        if (settingsObject != null)
+            settingsObject.SetActive(false);
+
+        // -----------------------------------------------------
         // SHOW HOME SCREEN
         // -----------------------------------------------------
 
@@ -116,7 +144,6 @@ public class HomeScreenController : MonoBehaviour
             gameplayCamera.transform.rotation =
                 homeScreenCameraPosition.rotation;
 
-            // Camera itself stays enabled.
             gameplayCamera.enabled = true;
         }
 
@@ -286,20 +313,39 @@ public class HomeScreenController : MonoBehaviour
         Time.timeScale = 0f;
 
         // -----------------------------------------------------
-        // FADE HOME SCREEN MUSIC OUT
+        // FADE HOME SCREEN MUSIC + SCREEN TO BLACK
+        // AT THE SAME TIME
         // -----------------------------------------------------
 
-        yield return StartCoroutine(
-            FadeMusicOut()
-        );
+        Coroutine musicFade =
+            StartCoroutine(FadeMusicOut());
+
+        Coroutine screenFade =
+            StartCoroutine(FadeToBlack());
+
+        yield return musicFade;
+        yield return screenFade;
 
         // -----------------------------------------------------
-        // FADE HOME SCREEN TO BLACK
+        // ENABLE SETTINGS
+        // AFTER HOME SCREEN FADE IS FINISHED
         // -----------------------------------------------------
 
-        yield return StartCoroutine(
-            FadeToBlack()
-        );
+        if (settingsObject != null)
+            settingsObject.SetActive(true);
+
+        // -----------------------------------------------------
+        // START GAMEPLAY BACKGROUND MUSIC
+        // -----------------------------------------------------
+
+        if (gameplayBackgroundAudioSource != null)
+        {
+            gameplayBackgroundAudioSource.ignoreListenerPause = true;
+            gameplayBackgroundAudioSource.loop = true;
+
+            gameplayBackgroundAudioSource.volume = 1f;
+            gameplayBackgroundAudioSource.Play();
+        }
 
         // -----------------------------------------------------
         // HIDE HOME SCREEN UI
@@ -405,20 +451,18 @@ public class HomeScreenController : MonoBehaviour
         Time.timeScale = 0f;
 
         // -----------------------------------------------------
-        // FADE MUSIC
+        // FADE MUSIC + SCREEN TO BLACK
+        // AT THE SAME TIME
         // -----------------------------------------------------
 
-        yield return StartCoroutine(
-            FadeMusicOut()
-        );
+        Coroutine musicFade =
+            StartCoroutine(FadeMusicOut());
 
-        // -----------------------------------------------------
-        // FADE TO BLACK
-        // -----------------------------------------------------
+        Coroutine screenFade =
+            StartCoroutine(FadeToBlack());
 
-        yield return StartCoroutine(
-            FadeToBlack()
-        );
+        yield return musicFade;
+        yield return screenFade;
 
         yield return new WaitForSecondsRealtime(0.1f);
 
