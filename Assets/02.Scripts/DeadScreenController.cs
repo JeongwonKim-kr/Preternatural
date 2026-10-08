@@ -11,6 +11,9 @@ public class DeadScreenController : MonoBehaviour
     public GameObject deadScreen;
     public RawImage blackFade;
 
+    [Header("Settings")]
+    public SettingsMenu settingsMenu;
+
     [Header("Video")]
     public VideoPlayer videoPlayer;
 
@@ -56,7 +59,6 @@ public class DeadScreenController : MonoBehaviour
 
     void OnEnable()
     {
-
         StartCoroutine(StartDeadSequence());
     }
 
@@ -68,6 +70,10 @@ public class DeadScreenController : MonoBehaviour
     void Start()
     {
         SetupDeathScreen();
+
+        // Lock Settings when this starts
+        if (settingsMenu != null)
+            settingsMenu.SetSettingsLocked(true);
     }
 
 
@@ -79,7 +85,6 @@ public class DeadScreenController : MonoBehaviour
     {
         if (deadScreen != null)
             deadScreen.SetActive(false);
-
 
         if (deadText != null)
             deadText.gameObject.SetActive(false);
@@ -93,14 +98,12 @@ public class DeadScreenController : MonoBehaviour
         if (timerText != null)
             timerText.gameObject.SetActive(false);
 
-
         if (blackFade != null)
         {
             Color c = blackFade.color;
             c.a = 0f;
             blackFade.color = c;
         }
-
 
         if (rewindButton != null)
         {
@@ -114,7 +117,6 @@ public class DeadScreenController : MonoBehaviour
             homeButton.onClick.AddListener(Menu);
         }
 
-
         timer = timerLength;
         selected = false;
     }
@@ -126,26 +128,34 @@ public class DeadScreenController : MonoBehaviour
 
     IEnumerator StartDeadSequence()
     {
+        yield return new WaitForSeconds(startDelay);
 
 
-        yield return new WaitForSeconds(
-            startDelay);
+        // =====================================================
+        // LOCK SETTINGS
+        // =====================================================
+
+        if (settingsMenu != null)
+            settingsMenu.SetSettingsLocked(true);
 
 
-
+        // =====================================================
+        // SHOW DEAD SCREEN
+        // =====================================================
 
         if (deadScreen != null)
             deadScreen.SetActive(true);
 
 
-        // Disable camera.
+        // =====================================================
+        // DISABLE CAMERA
+        // =====================================================
+
         if (cameraController != null)
             cameraController.enabled = false;
 
 
-        Cursor.lockState =
-            CursorLockMode.None;
-
+        Cursor.lockState = CursorLockMode.None;
         Cursor.visible = true;
 
 
@@ -153,14 +163,10 @@ public class DeadScreenController : MonoBehaviour
         // GLITCH SOUND
         // =====================================================
 
-  
-
-
         if (glitchSound != null &&
             sfxSource != null)
         {
-            sfxSource.PlayOneShot(
-                glitchSound);
+            sfxSource.PlayOneShot(glitchSound);
         }
 
 
@@ -181,14 +187,11 @@ public class DeadScreenController : MonoBehaviour
         if (deathMusic != null &&
             musicSource != null)
         {
-            musicSource.clip =
-                deathMusic;
+            musicSource.clip = deathMusic;
 
-            musicSource.volume =
-                0.15f;
+            musicSource.volume = 0.15f;
 
-            musicSource.loop =
-                true;
+            musicSource.loop = true;
 
             musicSource.Play();
         }
@@ -198,11 +201,7 @@ public class DeadScreenController : MonoBehaviour
         // DEAD TEXT
         // =====================================================
 
-        yield return new WaitForSeconds(
-            uiDelay);
-
-
-
+        yield return new WaitForSeconds(uiDelay);
 
         if (deadText != null)
         {
@@ -216,11 +215,7 @@ public class DeadScreenController : MonoBehaviour
         // REWIND
         // =====================================================
 
-        yield return new WaitForSeconds(
-            uiDelay);
-
-
-
+        yield return new WaitForSeconds(uiDelay);
 
         if (rewindText != null)
         {
@@ -234,11 +229,7 @@ public class DeadScreenController : MonoBehaviour
         // HOME
         // =====================================================
 
-        yield return new WaitForSeconds(
-            uiDelay);
-
-
-
+        yield return new WaitForSeconds(uiDelay);
 
         if (homeText != null)
         {
@@ -252,27 +243,20 @@ public class DeadScreenController : MonoBehaviour
         // TIMER
         // =====================================================
 
-        yield return new WaitForSeconds(
-            uiDelay);
-
-
-
-
+        yield return new WaitForSeconds(uiDelay);
 
         if (timerText != null)
         {
             timerText.gameObject.SetActive(true);
 
             timerText.text =
-                Mathf.CeilToInt(
-                    timer).ToString();
+                Mathf.CeilToInt(timer).ToString();
 
             PlayTextSound();
         }
 
 
-        StartCoroutine(
-            TimerRoutine());
+        StartCoroutine(TimerRoutine());
     }
 
 
@@ -287,14 +271,11 @@ public class DeadScreenController : MonoBehaviour
         {
             timer -= Time.deltaTime;
 
-
             if (timerText != null)
             {
                 timerText.text =
-                    Mathf.CeilToInt(
-                        timer).ToString();
+                    Mathf.CeilToInt(timer).ToString();
             }
-
 
             yield return null;
         }
@@ -313,14 +294,10 @@ public class DeadScreenController : MonoBehaviour
 
     void PlayTextSound()
     {
-
-
-
         if (textAppearSound != null &&
             sfxSource != null)
         {
-            sfxSource.PlayOneShot(
-                textAppearSound);
+            sfxSource.PlayOneShot(textAppearSound);
         }
     }
 
@@ -334,8 +311,7 @@ public class DeadScreenController : MonoBehaviour
         if (buttonClickSound != null &&
             sfxSource != null)
         {
-            sfxSource.PlayOneShot(
-                buttonClickSound);
+            sfxSource.PlayOneShot(buttonClickSound);
         }
     }
 
@@ -349,19 +325,14 @@ public class DeadScreenController : MonoBehaviour
         if (selected)
             return;
 
-
         selected = true;
-
 
         PlayButtonSound();
 
-
         StopAllCoroutines();
 
-
         StartCoroutine(
-            FadeAndLoad(
-                rewindScene));
+            FadeAndLoad(rewindScene));
     }
 
 
@@ -374,19 +345,14 @@ public class DeadScreenController : MonoBehaviour
         if (selected)
             return;
 
-
         selected = true;
-
 
         PlayButtonSound();
 
-
         StopAllCoroutines();
 
-
         StartCoroutine(
-            FadeAndLoad(
-                menuScene));
+            FadeAndLoad(menuScene));
     }
 
 
@@ -394,18 +360,15 @@ public class DeadScreenController : MonoBehaviour
     // FADE
     // =========================================================
 
-    IEnumerator FadeAndLoad(
-        string sceneName)
+    IEnumerator FadeAndLoad(string sceneName)
     {
         float alpha = 0f;
-
 
         while (alpha < 1f)
         {
             alpha +=
                 Time.deltaTime *
                 fadeSpeed;
-
 
             alpha =
                 Mathf.Clamp01(alpha);
@@ -437,7 +400,6 @@ public class DeadScreenController : MonoBehaviour
         }
 
 
-        SceneManager.LoadScene(
-            sceneName);
+        SceneManager.LoadScene(sceneName);
     }
 }

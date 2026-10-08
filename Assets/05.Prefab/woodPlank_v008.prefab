@@ -68,7 +68,7 @@ MeshRenderer:
   m_RenderingLayerMask: 1
   m_RendererPriority: 0
   m_Materials:
-  - {fileID: 2100000, guid: e785d992402bc504f8fbd4b2d1156129, type: 2}
+  - {fileID: 2100000, guid: 6690d21969ee042c6a1c04bf312f3ebe, type: 2}
   m_StaticBatchInfo:
     firstSubMesh: 0
     subMeshCount: 0
@@ -107,6 +107,7 @@ MonoBehaviour:
   requiredTool: 0
   toolHolder: {fileID: 0}
   boardedDoor: {fileID: 0}
+  playerCamera: {fileID: 0}
   interactDistance: 2
   interactKey: 101
   moveDistance: 0.4

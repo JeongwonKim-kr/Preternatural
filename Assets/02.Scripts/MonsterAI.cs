@@ -1,3 +1,4 @@
+
 using UnityEngine;
 using UnityEngine.AI;
 
@@ -25,7 +26,7 @@ public class MonsterAI : MonoBehaviour
     public float attackDistance = 2f;
 
     [Header("Speed")]
-    public float patrolSpeed = 5f;
+    public float patrolSpeed = 7.5f;
     public float runSpeed = 8f;
 
     [Header("Patrol")]
@@ -37,8 +38,8 @@ public class MonsterAI : MonoBehaviour
     public AudioClip patrolFootstep;
     public AudioClip runFootstep;
 
-    [Header("Footstep Distance")]
-    public float patrolStepDistance = 4f;
+    [Header("Footstep Distance")] 
+    public float patrolStepDistance = 5f;
     public float runStepDistance = 3f;
 
     [Header("Jumpscare")]
@@ -52,6 +53,10 @@ public class MonsterAI : MonoBehaviour
     [Header("Flashlight")]
     public FlashlightController flashlightController;
     public GameObject flashlightObject;
+
+    [Header("Animation")]
+    public float movementAnimationThreshold = 0.05f;
+    public float animationFadeTime = 0.15f;
 
     private bool playerLooking;
     private bool chasing;
@@ -70,6 +75,8 @@ public class MonsterAI : MonoBehaviour
     }
 
     private MonsterState currentState;
+
+    private string currentAnimation = "";
 
 
     void Start()
@@ -98,7 +105,9 @@ public class MonsterAI : MonoBehaviour
                 patrolPoints[patrolIndex].position);
         }
 
-        ChangeState(MonsterState.Patrol);
+        currentState = MonsterState.Patrol;
+
+        PlayRunAnimation();
     }
 
 
@@ -135,12 +144,9 @@ public class MonsterAI : MonoBehaviour
                         patrolPoints[patrolIndex].position);
                 }
 
-                ChangeState(
-                    MonsterState.Patrol);
+                ChangeState(MonsterState.Patrol);
             }
 
-            // IMPORTANT:
-            // Don't return here.
             // Let Patrol() continue running.
         }
         else
@@ -168,8 +174,9 @@ public class MonsterAI : MonoBehaviour
 
         if (CabinetHide.AnyCabinetHidden)
         {
-            // Keep patrolling.
             Patrol();
+
+            UpdateAnimation();
 
             Footsteps();
 
@@ -188,6 +195,8 @@ public class MonsterAI : MonoBehaviour
             distance <= lookStopDistance)
         {
             StopMonster();
+
+            UpdateAnimation();
 
             Footsteps();
 
@@ -216,8 +225,20 @@ public class MonsterAI : MonoBehaviour
         if (distance <= attackDistance)
         {
             Jumpscare();
+            return;
         }
 
+
+        // =====================================================
+        // ANIMATION
+        // =====================================================
+
+        UpdateAnimation();
+
+
+        // =====================================================
+        // FOOTSTEPS
+        // =====================================================
 
         Footsteps();
     }
@@ -237,8 +258,7 @@ public class MonsterAI : MonoBehaviour
         if (patrolPoints == null ||
             patrolPoints.Length == 0)
         {
-            ChangeState(
-                MonsterState.Patrol);
+            ChangeState(MonsterState.Patrol);
 
             return;
         }
@@ -265,8 +285,7 @@ public class MonsterAI : MonoBehaviour
         }
 
 
-        ChangeState(
-            MonsterState.Patrol);
+        ChangeState(MonsterState.Patrol);
     }
 
 
@@ -284,8 +303,7 @@ public class MonsterAI : MonoBehaviour
         agent.SetDestination(
             player.position);
 
-        ChangeState(
-            MonsterState.Chase);
+        ChangeState(MonsterState.Chase);
     }
 
 
@@ -300,13 +318,7 @@ public class MonsterAI : MonoBehaviour
         agent.isStopped = true;
         agent.velocity = Vector3.zero;
 
-        if (monsterAnimation != null &&
-            idleAnimation != null)
-        {
-            monsterAnimation.CrossFade(
-                idleAnimation.name,
-                0.2f);
-        }
+        ChangeState(MonsterState.Patrol);
     }
 
 
@@ -367,6 +379,77 @@ public class MonsterAI : MonoBehaviour
 
 
     // =========================================================
+    // ANIMATION
+    // =========================================================
+
+    void UpdateAnimation()
+    {
+        if (monsterAnimation == null)
+            return;
+
+        if (currentState == MonsterState.Jumpscare)
+            return;
+
+        // If NavMeshAgent is stopped, monster is idle.
+        if (agent.isStopped)
+        {
+            PlayIdleAnimation();
+            return;
+        }
+
+        // Check actual movement instead of AI state.
+        Vector3 horizontalVelocity = agent.velocity;
+        horizontalVelocity.y = 0f;
+
+        float movementAmount =
+            horizontalVelocity.magnitude;
+
+        if (movementAmount > movementAnimationThreshold)
+        {
+            PlayRunAnimation();
+        }
+        else
+        {
+            PlayIdleAnimation();
+        }
+    }
+
+
+    void PlayRunAnimation()
+    {
+        if (monsterAnimation == null ||
+            runAnimation == null)
+            return;
+
+        if (currentAnimation == runAnimation.name)
+            return;
+
+        currentAnimation = runAnimation.name;
+
+        monsterAnimation.CrossFade(
+            runAnimation.name,
+            animationFadeTime);
+    }
+
+
+    void PlayIdleAnimation()
+    {
+        if (monsterAnimation == null ||
+            idleAnimation == null)
+            return;
+
+        if (currentAnimation == idleAnimation.name)
+            return;
+
+        currentAnimation = idleAnimation.name;
+
+        monsterAnimation.CrossFade(
+            idleAnimation.name,
+            animationFadeTime);
+    }
+
+
+    // =========================================================
     // FOOTSTEPS
     // =========================================================
 
@@ -376,6 +459,13 @@ public class MonsterAI : MonoBehaviour
             return;
 
         if (agent.isStopped)
+            return;
+
+        // Don't play footsteps if actually not moving.
+        Vector3 velocity = agent.velocity;
+        velocity.y = 0f;
+
+        if (velocity.magnitude < movementAnimationThreshold)
             return;
 
         if (chasing)
@@ -467,8 +557,7 @@ public class MonsterAI : MonoBehaviour
         if (jumpscareObject != null)
             jumpscareObject.SetActive(true);
 
-        ChangeState(
-            MonsterState.Jumpscare);
+        ChangeState(MonsterState.Jumpscare);
 
         if (jumpscareSound != null &&
             audioSource != null)
@@ -480,55 +569,27 @@ public class MonsterAI : MonoBehaviour
 
 
     // =========================================================
-    // ANIMATION
+    // STATE
     // =========================================================
 
     void ChangeState(MonsterState newState)
     {
-        if (currentState == newState)
-            return;
-
         currentState = newState;
 
         if (monsterAnimation == null)
             return;
 
-        switch (currentState)
+        if (currentState == MonsterState.Jumpscare)
         {
-            case MonsterState.Patrol:
+            if (jumpscareAnimation != null)
+            {
+                currentAnimation =
+                    jumpscareAnimation.name;
 
-                if (runAnimation != null)
-                {
-                    monsterAnimation.CrossFade(
-                        runAnimation.name,
-                        0.2f);
-                }
-
-                break;
-
-
-            case MonsterState.Chase:
-
-                if (runAnimation != null)
-                {
-                    monsterAnimation.CrossFade(
-                        runAnimation.name,
-                        0.2f);
-                }
-
-                break;
-
-
-            case MonsterState.Jumpscare:
-
-                if (jumpscareAnimation != null)
-                {
-                    monsterAnimation.CrossFade(
-                        jumpscareAnimation.name,
-                        0.1f);
-                }
-
-                break;
+                monsterAnimation.CrossFade(
+                    jumpscareAnimation.name,
+                    0.1f);
+            }
         }
     }
 }
