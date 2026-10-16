@@ -10,7 +10,7 @@ public class JumpscareChase : MonoBehaviour
     public GameObject jumpscareObject;
     public Animation monsterAnimation;
     public AnimationClip jumpscareAnimation;
-    public float jumpscareDistance = 3f;
+    public float jumpscareDistance = 5f;
 
     [Header("Player")]
     public MonoBehaviour playerMovement;

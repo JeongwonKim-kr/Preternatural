@@ -26,16 +26,16 @@ public class FlashlightController : MonoBehaviour
 
 
     [Header("Walk Shake")]
-    public float walkShakeSpeed = 5f;
-    public float walkPositionAmount = 0.006f;
-    public float walkRotationAmount = 0.8f;
+    public float walkShakeSpeed = 8f;
+    public float walkPositionAmount = 0.015f;
+    public float walkRotationAmount = 2f;
 
 
 
     [Header("Sprint Shake")]
-    public float sprintShakeSpeed = 7.5f;
-    public float sprintPositionAmount = 0.025f;
-    public float sprintRotationAmount = 3.5f;
+    public float sprintShakeSpeed = 10f;
+    public float sprintPositionAmount = 0.03f;
+    public float sprintRotationAmount = 3f;
 
 
 
@@ -46,7 +46,7 @@ public class FlashlightController : MonoBehaviour
 
 
     [Header("Smoothing")]
-    public float smoothSpeed = 6f;
+    public float smoothSpeed = 10;
 
 
 

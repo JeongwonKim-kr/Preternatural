@@ -9,7 +9,7 @@ using UnityEngine.SceneManagement;
 public class BodyEndingController : MonoBehaviour, IInteractable
 {
     [Header("Interaction")]
-    [SerializeField] private float interactDistance = 3.3f;
+    [SerializeField] private float interactDistance = 3.8f;
     [SerializeField] private Transform playerCamera;
 
     [Header("Player")]
@@ -25,6 +25,9 @@ public class BodyEndingController : MonoBehaviour, IInteractable
     [Header("Video")]
     [SerializeField] private VideoPlayer videoPlayer;
     [SerializeField] private RawImage videoRawImage;
+
+    [Header("Object to Disable When Video Starts")]
+    [SerializeField] private GameObject objectToDisable;
 
     [Header("Video Fade")]
     [SerializeField] private float videoFadeDuration = 0.1f;
@@ -49,7 +52,7 @@ public class BodyEndingController : MonoBehaviour, IInteractable
 
     [Header("End Of Tape")]
     [SerializeField] private TMP_Text endOfTapeText;
-    [SerializeField] private float endTextDelay = 1.5f;
+    [SerializeField] private float endTextDelay = 2.5f;
 
     [Header("Final RawImage")]
     [SerializeField] private RawImage finalRawImage;
@@ -215,6 +218,29 @@ public class BodyEndingController : MonoBehaviour, IInteractable
             }
 
             // =================================================
+            // DISABLE ASSIGNED OBJECT WHEN VIDEO STARTS
+            // =================================================
+
+            if (objectToDisable != null)
+            {
+
+
+                MonoBehaviour[] scripts =
+                    objectToDisable.GetComponentsInChildren<MonoBehaviour>(true);
+
+                foreach (MonoBehaviour script in scripts)
+                {
+                    if (script != null && script != this)
+                    {
+                        script.enabled = false;
+                    }
+                }
+
+                objectToDisable.SetActive(false);
+            }
+
+
+            // =================================================
             // GLITCH WHEN VIDEO STARTS
             // =================================================
 
@@ -325,7 +351,7 @@ public class BodyEndingController : MonoBehaviour, IInteractable
         }
 
         // =====================================================
-        // 11. WAIT 1 SECOND
+        // 11. WAIT 4 SECONDS
         // =====================================================
 
         yield return new WaitForSecondsRealtime(4f);
@@ -342,7 +368,9 @@ public class BodyEndingController : MonoBehaviour, IInteractable
         // =====================================================
         // 13. SHOW FINAL RAWIMAGE + BEEP
         // =====================================================
- yield return new WaitForSecondsRealtime(1.5f);
+
+        yield return new WaitForSecondsRealtime(1.5f);
+
         if (finalRawImage != null)
         {
             finalRawImage.gameObject.SetActive(true);
@@ -354,7 +382,7 @@ public class BodyEndingController : MonoBehaviour, IInteractable
         }
 
         // =====================================================
-        // 14. KEEP RAWIMAGE FOR 1 SECOND
+        // 14. KEEP RAWIMAGE FOR 4 SECONDS
         // =====================================================
 
         yield return new WaitForSecondsRealtime(4f);

@@ -62,7 +62,7 @@ public class FirstPersonCamera : MonoBehaviour
     public FlashlightController flashlightController;
     public AudioSource equipAudioSource;
     public AudioClip equipSound;
-    public float flashlightDelay = 0.35f;
+    public float flashlightDelay = 0f;
 
     private Camera cam;
 

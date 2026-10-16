@@ -73,7 +73,8 @@ GameObject:
   m_Component:
   - component: {fileID: 4982938952830446204}
   - component: {fileID: 4982938952830446202}
-  - component: {fileID: 6890567866503560933}
+  - component: {fileID: 8432140978230493211}
+  - component: {fileID: 5962107150730124135}
   m_Layer: 0
   m_Name: Deadbody_Hanging
   m_TagString: Untagged
@@ -113,6 +114,11 @@ SkinnedMeshRenderer:
   m_ReflectionProbeUsage: 1
   m_RayTracingMode: 3
   m_RayTraceProcedural: 0
+  m_RayTracingAccelStructBuildFlagsOverride: 0
+  m_RayTracingAccelStructBuildFlags: 1
+  m_SmallMeshCulling: 1
+  m_ForceMeshLod: -1
+  m_MeshLodSelectionBias: 0
   m_RenderingLayerMask: 1
   m_RendererPriority: 0
   m_Materials:
@@ -135,9 +141,11 @@ SkinnedMeshRenderer:
   m_AutoUVMaxDistance: 0.5
   m_AutoUVMaxAngle: 89
   m_LightmapParameters: {fileID: 0}
+  m_GlobalIlluminationMeshLod: 0
   m_SortingLayerID: 0
   m_SortingLayer: 0
   m_SortingOrder: 0
+  m_MaskInteraction: 0
   serializedVersion: 2
   m_Quality: 0
   m_UpdateWhenOffscreen: 0
@@ -152,8 +160,8 @@ SkinnedMeshRenderer:
     m_Center: {x: -0.015034616, y: 1.2544018, z: -0.02701354}
     m_Extent: {x: 0.2563609, y: 1.2749788, z: 0.23161778}
   m_DirtyAABB: 0
---- !u!65 &6890567866503560933
-BoxCollider:
+--- !u!64 &8432140978230493211
+MeshCollider:
   m_ObjectHideFlags: 0
   m_CorrespondingSourceObject: {fileID: 0}
   m_PrefabInstance: {fileID: 0}
@@ -170,8 +178,32 @@ BoxCollider:
   m_IsTrigger: 0
   m_ProvidesContacts: 0
   m_Enabled: 1
-  serializedVersion: 3
-  m_Size: {x: 0.5127218, y: 2.5499575, z: 0.46323556}
+  serializedVersion: 5
+  m_Convex: 0
+  m_CookingOptions: 30
+  m_Mesh: {fileID: 0}
+--- !u!136 &5962107150730124135
+CapsuleCollider:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 4982938952830446207}
+  m_Material: {fileID: 0}
+  m_IncludeLayers:
+    serializedVersion: 2
+    m_Bits: 0
+  m_ExcludeLayers:
+    serializedVersion: 2
+    m_Bits: 0
+  m_LayerOverridePriority: 0
+  m_IsTrigger: 0
+  m_ProvidesContacts: 0
+  m_Enabled: 1
+  serializedVersion: 2
+  m_Radius: 0.2563609
+  m_Height: 2.5499575
+  m_Direction: 1
   m_Center: {x: -0.015034616, y: 1.2544018, z: -0.02701354}
 --- !u!1 &4982938953380432122
 GameObject:

@@ -1037,16 +1037,13 @@ public class SettingsMenu : MonoBehaviour
             yield return null;
         }
 
-HideMenuRootAfterExit();
+        HideMenuRootAfterExit();
 
-Time.timeScale = 0f;
+        Time.timeScale = 0f;
 
-// Restore audio BEFORE loading HomeScreen
-AudioListener.pause = false;
-AudioListener.volume = 1f;
+        AudioListener.pause =  false;
+        AudioListener.volume = soundValue;
 
-SceneManager.LoadScene(
-    homeScreenSceneName);
         SceneManager.LoadScene(
             homeScreenSceneName);
     }

@@ -14,7 +14,7 @@ public class JumpscareTriggerPart2 : MonoBehaviour
     [Header("Movement")]
     public float rushSpeed = 50f;
     public float stopDistance = 0.4f;
-    public float disappearDelay = 0.05f;
+    public float disappearDelay = 0.03f;
 
     private bool triggered = false;
 
