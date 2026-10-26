@@ -58,7 +58,7 @@ The game is available on itch.io.
 See gameplay footage, screenshots, and updates on the official game page:
 
 Download Preternatural:
-- [itch.io Homepage](https://jeongwongamedev.itch.io/Preternatural)
+- [Game Homepage](https://jeongwongamedev.itch.io/Preternatural)
 
 Check the game page for the available platform builds and installation instructions.
 
