@@ -57,7 +57,7 @@ Something watches from the darkness. With no clear way back, you must explore th
 The game is available on itch.io.
 See gameplay footage, screenshots, and updates on the official game page:
 
-**[Download PRETERNATURAL](https://jeongwongamedev.itch.io/preternatural)**
+<iframe frameborder="0" src="https://itch.io/embed/5149922?bg_color=000000&amp;fg_color=ffffff" width="552" height="167"><a href="https://jeongwongamedev.itch.io/preternatural">PRETERNATURAL by Jeongwon Game Dev</a></iframe>
 
 Check the game page for the available platform builds and installation instructions.
 
@@ -72,8 +72,4 @@ This repository contains the game's development files and project resources.
 **Jeongwon Game Dev**
 
 - [itch.io Homepage](https://jeongwongamedev.itch.io/)
-- [PRETERNATURAL Game Page](https://jeongwongamedev.itch.io/preternatural)
 
----
-
-*Some doors should never be opened.*
